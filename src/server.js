@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { initDatabase } = require('./database/db');
@@ -12,21 +11,6 @@ const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet());
-
-// Rate limiting - previene brute force
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 5, // máximo 5 intentos de login/register por IP
-    message: { success: false, error: 'Too many attempts, please try again in 15 minutes' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100, // 100 requests por 15 min
-    message: { success: false, error: 'Too many requests' }
-});
 
 // CORS - restringido para producción, abierto para desarrollo
 const allowedOrigins = process.env.CORS_ORIGIN 
@@ -59,9 +43,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Aplicar rate limiter general
-app.use(generalLimiter);
-
 // Request logging middleware
 app.use((req, res, next) => {
     console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
@@ -78,8 +59,8 @@ app.get('/health', (req, res) => {
     });
 });
 
-// API Routes con rate limiter específico para auth
-app.use('/api/auth', authLimiter, authRoutes);
+// API Routes
+app.use('/api/auth', authRoutes);
 
 // 404 handler
 app.use((req, res) => {
