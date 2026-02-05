@@ -115,10 +115,30 @@ const migrateExistingUsers = async () => {
                 ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}'
             `);
             
-            console.log('✅ Migration completed - All users updated with default loadout');
+            console.log('✅ Columns added successfully');
         }
+        
+        // Update existing users with NULL loadout data (always run this to fix old users)
+        const result = await query(`
+            UPDATE users 
+            SET 
+                selected_character = COALESCE(selected_character, 'CRIMSON'),
+                level = COALESCE(level, 1),
+                primary_weapon = COALESCE(primary_weapon, '{"weaponId": "rifle_phantom", "skinId": "default"}'::jsonb),
+                secondary_weapon = COALESCE(secondary_weapon, '{"weaponId": "pistol_ghost", "skinId": "default"}'::jsonb),
+                unlocked_characters = COALESCE(unlocked_characters, '["CRIMSON"]'::jsonb),
+                unlocked_weapon_skins = COALESCE(unlocked_weapon_skins, '{"rifle_phantom": ["default"], "rifle_vandal": ["default"], "smg_stinger": ["default"], "pistol_ghost": ["default"], "pistol_sheriff": ["default"]}'::jsonb)
+            WHERE selected_character IS NULL OR level IS NULL OR primary_weapon IS NULL
+        `);
+        
+        if (result.rowCount > 0) {
+            console.log(`✅ Updated ${result.rowCount} users with default loadout data`);
+        } else {
+            console.log('✅ All users already have valid loadout data');
+        }
+        
     } catch (error) {
-        console.log('⚠️ Migration check: Columns may already exist');
+        console.error('⚠️ Migration error:', error.message);
     }
 };
 
