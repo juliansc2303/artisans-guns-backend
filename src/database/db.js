@@ -76,7 +76,6 @@ const initDatabase = async () => {
         
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_character_name ON users(character_name);
-        CREATE INDEX IF NOT EXISTS idx_users_selected_character ON users(selected_character);
     `;
 
     try {
@@ -85,6 +84,10 @@ const initDatabase = async () => {
         
         // Migrate existing users (add new columns if they don't exist)
         await migrateExistingUsers();
+        
+        // Create index on selected_character AFTER migration
+        await query('CREATE INDEX IF NOT EXISTS idx_users_selected_character ON users(selected_character)');
+        console.log('✅ Database indexes created');
         
     } catch (error) {
         console.error('❌ Failed to initialize database:', error);
