@@ -55,6 +55,20 @@ const initDatabase = async () => {
             username VARCHAR(50) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
             character_name VARCHAR(50) NOT NULL,
+            
+            -- Player Loadout (configuration)
+            selected_character VARCHAR(50) DEFAULT 'CRIMSON',
+            level INTEGER DEFAULT 1,
+            
+            -- Weapon Loadout (stored as JSON)
+            primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
+            secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
+            
+            -- Unlocked Content (stored as JSON arrays)
+            unlocked_characters JSONB DEFAULT '["CRIMSON"]',
+            unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
+            
+            -- Account Management
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP,
             is_active BOOLEAN DEFAULT TRUE
@@ -62,14 +76,49 @@ const initDatabase = async () => {
         
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_character_name ON users(character_name);
+        CREATE INDEX IF NOT EXISTS idx_users_selected_character ON users(selected_character);
     `;
 
     try {
         await query(createUsersTable);
         console.log('✅ Database tables initialized');
+        
+        // Migrate existing users (add new columns if they don't exist)
+        await migrateExistingUsers();
+        
     } catch (error) {
         console.error('❌ Failed to initialize database:', error);
         throw error;
+    }
+};
+
+// Migrate existing users to add new loadout columns
+const migrateExistingUsers = async () => {
+    try {
+        // Check if selected_character column exists
+        const checkColumn = await query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='selected_character'
+        `);
+        
+        if (checkColumn.rows.length === 0) {
+            console.log('🔄 Migrating existing users to new loadout schema...');
+            
+            await query(`
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS selected_character VARCHAR(50) DEFAULT 'CRIMSON',
+                ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+                ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
+                ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
+                ADD COLUMN IF NOT EXISTS unlocked_characters JSONB DEFAULT '["CRIMSON"]',
+                ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}'
+            `);
+            
+            console.log('✅ Migration completed - All users updated with default loadout');
+        }
+    } catch (error) {
+        console.log('⚠️ Migration check: Columns may already exist');
     }
 };
 

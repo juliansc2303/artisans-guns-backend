@@ -32,9 +32,19 @@ Ver `.env.example` para la lista completa.
 
 ## Endpoints
 
+### Authentication
 - `POST /api/auth/register` - Crear cuenta
 - `POST /api/auth/login` - Iniciar sesión
 - `POST /api/auth/verify` - Verificar token
+
+### Loadout & Inventory
+- `GET /api/loadout` - Obtener configuración del jugador
+- `PUT /api/loadout` - Actualizar personaje/armas
+- `GET /api/loadout/inventory` - Ver contenido desbloqueado
+- `POST /api/loadout/unlock-character` - Desbloquear personaje (futuro shop)
+- `POST /api/loadout/unlock-skin` - Desbloquear skin (futuro shop)
+
+Ver [LOADOUT_API_DOCS.md](LOADOUT_API_DOCS.md) para documentación completa.
 
 ## Seguridad
 

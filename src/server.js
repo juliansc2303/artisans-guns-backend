@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const { initDatabase } = require('./database/db');
 const authRoutes = require('./routes/authRoutes');
+const loadoutRoutes = require('./routes/loadoutRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,6 +62,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/loadout', loadoutRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -100,6 +102,9 @@ const startServer = async () => {
             console.log(`  POST http://localhost:${PORT}/api/auth/register`);
             console.log(`  POST http://localhost:${PORT}/api/auth/login`);
             console.log(`  POST http://localhost:${PORT}/api/auth/verify`);
+            console.log(`  GET  http://localhost:${PORT}/api/loadout`);
+            console.log(`  PUT  http://localhost:${PORT}/api/loadout`);
+            console.log(`  GET  http://localhost:${PORT}/api/loadout/inventory`);
             console.log('='.repeat(50));
             console.log('');
         });

@@ -55,17 +55,43 @@ const register = async (username, password, characterName) => {
         // Hash password
         const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Insert user
+        // Insert user with default loadout
         const result = await query(
-            `INSERT INTO users (username, password_hash, character_name) 
-             VALUES ($1, $2, $3) 
-             RETURNING id, username, character_name, created_at`,
-            [username.toLowerCase(), passwordHash, characterName]
+            `INSERT INTO users (
+                username, 
+                password_hash, 
+                character_name,
+                selected_character,
+                level,
+                primary_weapon,
+                secondary_weapon,
+                unlocked_characters,
+                unlocked_weapon_skins
+            ) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+             RETURNING id, username, character_name, selected_character, level`,
+            [
+                username.toLowerCase(), 
+                passwordHash, 
+                characterName,
+                'CRIMSON', // Default character
+                1, // Starting level
+                JSON.stringify({ weaponId: 'rifle_phantom', skinId: 'default' }),
+                JSON.stringify({ weaponId: 'pistol_ghost', skinId: 'default' }),
+                JSON.stringify(['CRIMSON']), // Starting with CRIMSON unlocked
+                JSON.stringify({
+                    rifle_phantom: ['default'],
+                    rifle_vandal: ['default'],
+                    smg_stinger: ['default'],
+                    pistol_ghost: ['default'],
+                    pistol_sheriff: ['default']
+                })
+            ]
         );
 
         const user = result.rows[0];
 
-        console.log(`✅ User registered: ${username}`);
+        console.log(`✅ User registered: ${username} with default loadout`);
 
         return {
             success: true,
@@ -96,9 +122,20 @@ const login = async (username, password) => {
             throw new Error('Username and password are required');
         }
 
-        // Get user from database
+        // Get user from database with full loadout
         const result = await query(
-            `SELECT id, username, password_hash, character_name, is_active 
+            `SELECT 
+                id, 
+                username, 
+                password_hash, 
+                character_name, 
+                is_active,
+                selected_character,
+                level,
+                primary_weapon,
+                secondary_weapon,
+                unlocked_characters,
+                unlocked_weapon_skins
              FROM users 
              WHERE username = $1`,
             [username.toLowerCase()]
@@ -147,7 +184,13 @@ const login = async (username, password) => {
             user: {
                 id: user.id,
                 username: user.username,
-                characterName: user.character_name
+                characterName: user.character_name,
+                selectedCharacter: user.selected_character,
+                level: user.level,
+                primaryWeapon: user.primary_weapon,
+                secondaryWeapon: user.secondary_weapon,
+                unlockedCharacters: user.unlocked_characters,
+                unlockedWeaponSkins: user.unlocked_weapon_skins
             }
         };
 
