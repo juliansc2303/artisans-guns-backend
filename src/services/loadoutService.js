@@ -74,6 +74,7 @@ const updateLoadout = async (userId, loadoutData) => {
         }
 
         // Validate weapon skins (if provided)
+        // Note: "default" skins are always available and don't need validation
         if (primaryWeapon || secondaryWeapon) {
             const userResult = await query(
                 'SELECT unlocked_weapon_skins FROM users WHERE id = $1',
@@ -82,14 +83,14 @@ const updateLoadout = async (userId, loadoutData) => {
 
             const unlockedSkins = userResult.rows[0].unlocked_weapon_skins;
 
-            if (primaryWeapon) {
+            if (primaryWeapon && primaryWeapon.skinId !== 'default') {
                 const weaponSkins = unlockedSkins[primaryWeapon.weaponId] || [];
                 if (!weaponSkins.includes(primaryWeapon.skinId)) {
                     throw new Error(`Primary weapon skin '${primaryWeapon.skinId}' not unlocked for ${primaryWeapon.weaponId}`);
                 }
             }
 
-            if (secondaryWeapon) {
+            if (secondaryWeapon && secondaryWeapon.skinId !== 'default') {
                 const weaponSkins = unlockedSkins[secondaryWeapon.weaponId] || [];
                 if (!weaponSkins.includes(secondaryWeapon.skinId)) {
                     throw new Error(`Secondary weapon skin '${secondaryWeapon.skinId}' not unlocked for ${secondaryWeapon.weaponId}`);
