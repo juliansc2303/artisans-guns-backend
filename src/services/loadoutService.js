@@ -12,7 +12,9 @@ const getLoadout = async (userId) => {
                 primary_weapon,
                 secondary_weapon,
                 unlocked_characters,
-                unlocked_weapon_skins
+                unlocked_weapon_skins,
+                blue_points,
+                rival_coins
              FROM users 
              WHERE id = $1`,
             [userId]
@@ -32,7 +34,9 @@ const getLoadout = async (userId) => {
                 primaryWeapon: loadout.primary_weapon,
                 secondaryWeapon: loadout.secondary_weapon,
                 unlockedCharacters: loadout.unlocked_characters,
-                unlockedWeaponSkins: loadout.unlocked_weapon_skins
+                unlockedWeaponSkins: loadout.unlocked_weapon_skins,
+                bluePoints: loadout.blue_points || 0,
+                rivalCoins: loadout.rival_coins || 0
             }
         };
 
@@ -157,7 +161,9 @@ const getInventory = async (userId) => {
         const result = await query(
             `SELECT 
                 unlocked_characters,
-                unlocked_weapon_skins
+                unlocked_weapon_skins,
+                blue_points,
+                rival_coins
              FROM users 
              WHERE id = $1`,
             [userId]
@@ -173,7 +179,9 @@ const getInventory = async (userId) => {
             success: true,
             inventory: {
                 unlockedCharacters: inventory.unlocked_characters,
-                unlockedWeaponSkins: inventory.unlocked_weapon_skins
+                unlockedWeaponSkins: inventory.unlocked_weapon_skins,
+                bluePoints: inventory.blue_points || 0,
+                rivalCoins: inventory.rival_coins || 0
             }
         };
 

@@ -66,9 +66,11 @@ const register = async (username, password, characterName) => {
                 primary_weapon,
                 secondary_weapon,
                 unlocked_characters,
-                unlocked_weapon_skins
+                unlocked_weapon_skins,
+                blue_points,
+                rival_coins
             ) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
              RETURNING id, username, character_name, selected_character, level`,
             [
                 username.toLowerCase(), 
@@ -85,7 +87,9 @@ const register = async (username, password, characterName) => {
                     smg_stinger: ['default'],
                     pistol_ghost: ['default'],
                     pistol_sheriff: ['default']
-                })
+                }),
+                0, // Starting blue points
+                0  // Starting rival coins
             ]
         );
 
@@ -135,7 +139,9 @@ const login = async (username, password) => {
                 primary_weapon,
                 secondary_weapon,
                 unlocked_characters,
-                unlocked_weapon_skins
+                unlocked_weapon_skins,
+                blue_points,
+                rival_coins
              FROM users 
              WHERE username = $1`,
             [username.toLowerCase()]
@@ -190,7 +196,9 @@ const login = async (username, password) => {
                 primaryWeapon: user.primary_weapon,
                 secondaryWeapon: user.secondary_weapon,
                 unlockedCharacters: user.unlocked_characters,
-                unlockedWeaponSkins: user.unlocked_weapon_skins
+                unlockedWeaponSkins: user.unlocked_weapon_skins,
+                bluePoints: user.blue_points || 0,
+                rivalCoins: user.rival_coins || 0
             }
         };
 

@@ -68,6 +68,10 @@ const initDatabase = async () => {
             unlocked_characters JSONB DEFAULT '["CRIMSON"]',
             unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
             
+            -- Currency
+            blue_points INTEGER DEFAULT 0,
+            rival_coins INTEGER DEFAULT 0,
+            
             -- Account Management
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP,
@@ -115,7 +119,9 @@ const migrateExistingUsers = async () => {
                 ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
                 ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
                 ADD COLUMN IF NOT EXISTS unlocked_characters JSONB DEFAULT '["CRIMSON"]',
-                ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}'
+                ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
+                ADD COLUMN IF NOT EXISTS blue_points INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS rival_coins INTEGER DEFAULT 0
             `);
             
             console.log('✅ Columns added successfully');
