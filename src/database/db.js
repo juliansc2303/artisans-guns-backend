@@ -61,12 +61,12 @@ const initDatabase = async () => {
             level INTEGER DEFAULT 1,
             
             -- Weapon Loadout (stored as JSON)
-            primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
-            secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
+            primary_weapon JSONB DEFAULT '{"weaponId": "talon_ar", "skinId": "default"}',
+            secondary_weapon JSONB DEFAULT '{"weaponId": "bolt", "skinId": "default"}',
             
             -- Unlocked Content (stored as JSON arrays)
             unlocked_characters JSONB DEFAULT '["CRIMSON"]',
-            unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
+            unlocked_weapon_skins JSONB DEFAULT '{"talon_ar": ["default"], "bolt": ["default"], "rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
             
             -- Currency
             blue_points INTEGER DEFAULT 0,
@@ -109,10 +109,10 @@ const migrateExistingUsers = async () => {
             ALTER TABLE users 
             ADD COLUMN IF NOT EXISTS selected_character VARCHAR(50) DEFAULT 'CRIMSON',
             ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
-            ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
-            ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
+            ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "talon_ar", "skinId": "default"}',
+            ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "bolt", "skinId": "default"}',
             ADD COLUMN IF NOT EXISTS unlocked_characters JSONB DEFAULT '["CRIMSON"]',
-            ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
+            ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"talon_ar": ["default"], "bolt": ["default"], "rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
             ADD COLUMN IF NOT EXISTS blue_points INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS rival_coins INTEGER DEFAULT 0
         `);
@@ -125,10 +125,10 @@ const migrateExistingUsers = async () => {
             SET 
                 selected_character = COALESCE(selected_character, 'CRIMSON'),
                 level = COALESCE(level, 1),
-                primary_weapon = COALESCE(primary_weapon, '{"weaponId": "rifle_phantom", "skinId": "default"}'::jsonb),
-                secondary_weapon = COALESCE(secondary_weapon, '{"weaponId": "pistol_ghost", "skinId": "default"}'::jsonb),
+                primary_weapon = COALESCE(primary_weapon, '{"weaponId": "talon_ar", "skinId": "default"}'::jsonb),
+                secondary_weapon = COALESCE(secondary_weapon, '{"weaponId": "bolt", "skinId": "default"}'::jsonb),
                 unlocked_characters = COALESCE(unlocked_characters, '["CRIMSON"]'::jsonb),
-                unlocked_weapon_skins = COALESCE(unlocked_weapon_skins, '{"rifle_phantom": ["default"], "rifle_vandal": ["default"], "smg_stinger": ["default"], "pistol_ghost": ["default"], "pistol_sheriff": ["default"]}'::jsonb),
+                unlocked_weapon_skins = COALESCE(unlocked_weapon_skins, '{"talon_ar": ["default"], "bolt": ["default"], "rifle_phantom": ["default"], "rifle_vandal": ["default"], "smg_stinger": ["default"], "pistol_ghost": ["default"], "pistol_sheriff": ["default"]}'::jsonb),
                 blue_points = COALESCE(blue_points, 0),
                 rival_coins = COALESCE(rival_coins, 0)
             WHERE selected_character IS NULL OR level IS NULL OR primary_weapon IS NULL OR blue_points IS NULL OR rival_coins IS NULL

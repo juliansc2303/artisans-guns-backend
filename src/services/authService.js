@@ -78,10 +78,12 @@ const register = async (username, password, characterName) => {
                 characterName,
                 'CRIMSON', // Default character
                 1, // Starting level
-                JSON.stringify({ weaponId: 'rifle_phantom', skinId: 'default' }),
-                JSON.stringify({ weaponId: 'pistol_ghost', skinId: 'default' }),
+                JSON.stringify({ weaponId: 'talon_ar', skinId: 'default' }),
+                JSON.stringify({ weaponId: 'bolt', skinId: 'default' }),
                 JSON.stringify(['CRIMSON']), // Starting with CRIMSON unlocked
                 JSON.stringify({
+                    talon_ar: ['default'],
+                    bolt: ['default'],
                     rifle_phantom: ['default'],
                     rifle_vandal: ['default'],
                     smg_stinger: ['default'],
