@@ -102,30 +102,22 @@ const initDatabase = async () => {
 // Migrate existing users to add new loadout columns
 const migrateExistingUsers = async () => {
     try {
-        // Check if selected_character column exists
-        const checkColumn = await query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='users' AND column_name='selected_character'
+        console.log('🔄 Running database migrations...');
+        
+        // Always try to add columns (IF NOT EXISTS is safe)
+        await query(`
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS selected_character VARCHAR(50) DEFAULT 'CRIMSON',
+            ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
+            ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
+            ADD COLUMN IF NOT EXISTS unlocked_characters JSONB DEFAULT '["CRIMSON"]',
+            ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
+            ADD COLUMN IF NOT EXISTS blue_points INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS rival_coins INTEGER DEFAULT 0
         `);
         
-        if (checkColumn.rows.length === 0) {
-            console.log('🔄 Migrating existing users to new loadout schema...');
-            
-            await query(`
-                ALTER TABLE users 
-                ADD COLUMN IF NOT EXISTS selected_character VARCHAR(50) DEFAULT 'CRIMSON',
-                ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
-                ADD COLUMN IF NOT EXISTS primary_weapon JSONB DEFAULT '{"weaponId": "rifle_phantom", "skinId": "default"}',
-                ADD COLUMN IF NOT EXISTS secondary_weapon JSONB DEFAULT '{"weaponId": "pistol_ghost", "skinId": "default"}',
-                ADD COLUMN IF NOT EXISTS unlocked_characters JSONB DEFAULT '["CRIMSON"]',
-                ADD COLUMN IF NOT EXISTS unlocked_weapon_skins JSONB DEFAULT '{"rifle_phantom": ["default"], "pistol_ghost": ["default"]}',
-                ADD COLUMN IF NOT EXISTS blue_points INTEGER DEFAULT 0,
-                ADD COLUMN IF NOT EXISTS rival_coins INTEGER DEFAULT 0
-            `);
-            
-            console.log('✅ Columns added successfully');
-        }
+        console.log('✅ Migration columns check completed');
         
         // Update existing users with NULL loadout data (always run this to fix old users)
         const result = await query(`
