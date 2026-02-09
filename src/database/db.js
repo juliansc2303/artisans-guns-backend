@@ -136,8 +136,10 @@ const migrateExistingUsers = async () => {
                 primary_weapon = COALESCE(primary_weapon, '{"weaponId": "rifle_phantom", "skinId": "default"}'::jsonb),
                 secondary_weapon = COALESCE(secondary_weapon, '{"weaponId": "pistol_ghost", "skinId": "default"}'::jsonb),
                 unlocked_characters = COALESCE(unlocked_characters, '["CRIMSON"]'::jsonb),
-                unlocked_weapon_skins = COALESCE(unlocked_weapon_skins, '{"rifle_phantom": ["default"], "rifle_vandal": ["default"], "smg_stinger": ["default"], "pistol_ghost": ["default"], "pistol_sheriff": ["default"]}'::jsonb)
-            WHERE selected_character IS NULL OR level IS NULL OR primary_weapon IS NULL
+                unlocked_weapon_skins = COALESCE(unlocked_weapon_skins, '{"rifle_phantom": ["default"], "rifle_vandal": ["default"], "smg_stinger": ["default"], "pistol_ghost": ["default"], "pistol_sheriff": ["default"]}'::jsonb),
+                blue_points = COALESCE(blue_points, 0),
+                rival_coins = COALESCE(rival_coins, 0)
+            WHERE selected_character IS NULL OR level IS NULL OR primary_weapon IS NULL OR blue_points IS NULL OR rival_coins IS NULL
         `);
         
         if (result.rowCount > 0) {
