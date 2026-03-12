@@ -1,0 +1,316 @@
+/* ===================================
+   RYVALEN — PERSISTENT UI
+   Always-Visible Header Layer
+   Dual-Color Rivalry: Orange vs Cyan
+   =================================== */
+
+/* Global Font */
+* {
+    -unity-font-definition: url('project://database/Assets/Fonts/WhirlyBirdie-WideBold.otf?fileID=12800000&guid=3dbce92e7e9156543aa54fb9ca2c7a54&type=3#WhirlyBirdie-WideBold');
+}
+
+:root {
+    --rival-a: rgb(255, 95, 50);
+    --rival-a-bright: rgb(255, 130, 85);
+    --rival-a-glow: rgba(255, 95, 50, 0.4);
+    --rival-a-subtle: rgba(255, 95, 50, 0.10);
+    --rival-b: rgb(0, 195, 240);
+    --rival-b-bright: rgb(60, 215, 255);
+    --rival-b-glow: rgba(0, 195, 240, 0.35);
+    --rival-b-subtle: rgba(0, 195, 240, 0.08);
+    --bg-abyss: rgb(6, 6, 10);
+    --bg-panel: rgba(10, 10, 16, 0.92);
+    --border-dim: rgb(28, 28, 36);
+    --border-mid: rgb(45, 45, 55);
+    --text-primary: rgb(230, 232, 238);
+    --text-secondary: rgb(130, 132, 148);
+}
+
+/* ===================================
+   PERSISTENT CONTAINER
+   =================================== */
+.persistent-container {
+    position: absolute;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* ===================================
+   HEADER — Command Bar
+   =================================== */
+.header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 40px 15px 20px;
+    background-color: rgba(8, 8, 14, 0.96);
+    pointer-events: auto;
+
+    /* Dual rivalry accent */
+    border-bottom-width: 3px;
+    border-bottom-color: var(--rival-a);
+    border-top-width: 1px;
+    border-top-color: rgba(0, 195, 240, 0.12);
+}
+
+/* ── Left Navigation ── */
+.left-nav-buttons {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 0;
+}
+
+.room-nav-container {
+    display: flex;
+}
+
+.room-nav-container.hidden {
+    display: none;
+}
+
+/* ── Logo Button (Center) ── */
+.logo-button {
+    width: 250px;
+    height: 110px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    border-width: 0;
+    border-bottom-width: 3px;
+    border-bottom-color: transparent;
+    border-radius: 0;
+    position: absolute;
+    left: 50%;
+    translate: -50% 0;
+    top: 15px;
+    padding: 0;
+    cursor: link;
+
+    transition-property: border-color;
+    transition-duration: 0.3s;
+}
+
+.logo-button:hover {
+    border-bottom-color: rgba(255, 95, 50, 0.5);
+}
+
+.logo-button-active {
+    border-bottom-color: var(--rival-a);
+}
+
+.logo-icon {
+    width: 250px;
+    height: 125px;
+    background-image: url('project://database/Assets/UI/Sprites/RivalIcon.png');
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: white;
+    margin: 0;
+    padding: 0;
+}
+
+.logo-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    -unity-text-align: middle-center;
+    letter-spacing: 3px;
+    margin-top: -15px;
+    margin-bottom: 8px;
+}
+
+.logo-button-active .logo-label {
+    color: var(--rival-a);
+}
+
+/* ── Navigation Buttons ── */
+.nav-button {
+    background-color: transparent;
+    border-width: 0;
+    border-bottom-width: 3px;
+    border-bottom-color: transparent;
+    border-top-width: 2px;
+    border-top-color: transparent;
+    border-radius: 0;
+    padding: 10px 25px 8px 25px;
+    min-width: 80px;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    cursor: link;
+
+    transition-property: border-bottom-color, border-top-color, background-color;
+    transition-duration: 0.25s;
+}
+
+.nav-button:hover {
+    background-color: var(--rival-a-subtle);
+    border-bottom-color: rgba(255, 95, 50, 0.45);
+    border-top-color: rgba(0, 195, 240, 0.2);
+}
+
+.nav-button-active {
+    border-bottom-color: var(--rival-a);
+    border-top-color: var(--rival-b);
+}
+
+.nav-icon {
+    font-size: 28px;
+    color: rgb(200, 200, 210);
+    margin-bottom: 2px;
+    -unity-text-align: middle-center;
+}
+
+.nav-button-active .nav-icon {
+    color: var(--rival-a);
+}
+
+.nav-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    -unity-text-align: middle-center;
+}
+
+.nav-button-active .nav-label {
+    color: var(--text-primary);
+}
+
+/* ── Right Header Section ── */
+.right-header-section {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Rival Coins (Orange Currency) ── */
+.rival-essence-container {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 14px 6px 8px;
+    background-color: rgba(255, 95, 50, 0.06);
+    border-width: 1px;
+    border-color: rgba(255, 95, 50, 0.18);
+    border-left-width: 2px;
+    border-left-color: rgba(255, 95, 50, 0.5);
+}
+
+.rival-essence-icon {
+    width: 48px;
+    height: 48px;
+    background-image: url('project://database/Assets/UI/Sprites/RivalEssenceIcon.png');
+    -unity-background-scale-mode: scale-to-fit;
+    margin-right: 10px;
+}
+
+.rival-essence-label {
+    color: var(--rival-a);
+    -unity-font-style: bold;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-shadow: 0 0 12px var(--rival-a-glow);
+}
+
+/* ── Rival Diamonds (Cyan Currency) ── */
+.rival-points-container {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 14px 6px 8px;
+    background-color: rgba(0, 195, 240, 0.05);
+    border-width: 1px;
+    border-color: rgba(0, 195, 240, 0.15);
+    border-left-width: 2px;
+    border-left-color: rgba(0, 195, 240, 0.45);
+}
+
+.rival-points-icon {
+    width: 48px;
+    height: 48px;
+    background-image: url('project://database/Assets/UI/Sprites/RivalPointsIcon.png');
+    -unity-background-scale-mode: scale-to-fit;
+    margin-right: 10px;
+}
+
+.rival-points-label {
+    color: var(--rival-b);
+    -unity-font-style: bold;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-shadow: 0 0 12px var(--rival-b-glow);
+}
+
+/* ── Settings Button ── */
+.settings-button {
+    width: 50px;
+    height: 50px;
+    background-color: transparent;
+    border-width: 1px;
+    border-color: rgba(255, 95, 50, 0.2);
+    border-radius: 0;
+    align-items: center;
+    justify-content: center;
+
+    transition-property: background-color, border-color, rotate, scale;
+    transition-duration: 0.25s;
+    cursor: link;
+}
+
+.settings-button:hover {
+    background-color: var(--rival-a-subtle);
+    border-color: var(--rival-a);
+    rotate: 90deg;
+    scale: 1.08;
+}
+
+.settings-icon {
+    font-size: 28px;
+    color: var(--rival-a);
+    -unity-text-align: middle-center;
+}
+
+/* ── Player Count (Room Only) ── */
+.players-count-header {
+    font-size: 20px;
+    color: var(--rival-a);
+    -unity-font-style: bold;
+    letter-spacing: 2px;
+    margin-left: 20px;
+    text-shadow: 0 0 8px var(--rival-a-glow);
+}
+
+.players-count-header.hidden {
+    display: none;
+}
+
+/* ===================================
+   FRIENDS PANEL (Future)
+   =================================== */
+.friends-panel {
+    position: absolute;
+    right: 0;
+    top: 150px;
+    width: 300px;
+    height: 600px;
+    background-color: var(--bg-panel);
+    border-width: 1px;
+    border-color: var(--border-dim);
+    border-left-width: 3px;
+    border-left-color: rgba(0, 195, 240, 0.3);
+    padding: 20px;
+    pointer-events: auto;
+}
+
+.friends-title {
+    font-size: 16px;
+    color: var(--rival-b);
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px var(--rival-b-glow);
+}
+
+/* Utility */
+.hidden {
+    display: none;
+}

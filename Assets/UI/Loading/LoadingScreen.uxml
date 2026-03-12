@@ -1,0 +1,12 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <ui:VisualElement name="LoadingRoot" class="loading-root">
+        <ui:VisualElement name="LoadingContent" class="loading-content">
+            <ui:Label name="GameTitle" text="RYVALEN" class="game-title" />
+            <ui:Label name="LoadingLabel" text="LOADING..." class="loading-label" />
+            <ui:VisualElement name="ProgressBarBg" class="progress-bar-bg">
+                <ui:VisualElement name="ProgressBarFill" class="progress-bar-fill" />
+            </ui:VisualElement>
+            <ui:Label name="ProgressText" text="0%" class="progress-text" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

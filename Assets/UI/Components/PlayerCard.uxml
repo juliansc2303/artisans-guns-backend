@@ -1,0 +1,22 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" engine="UnityEngine.UIElements" editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="PlayerCard.uss" />
+    <!-- Mini Player Card Component for Room Screen -->
+    <ui:VisualElement name="PlayerCard" class="player-card">
+        <!-- Player Info Header -->
+        <ui:VisualElement name="CardHeader" class="card-header">
+            <ui:Label name="PlayerName" text="PLAYER_NAME" class="player-name" />
+            <ui:Label name="PlayerLevel" text="LVL 1" class="player-level" />
+        </ui:VisualElement>
+        
+        <!-- Character Display -->
+        <ui:VisualElement name="CharacterInfo" class="character-info">
+            <ui:Label name="CharacterName" text="CRIMSON" class="character-name" />
+        </ui:VisualElement>
+        
+        <!-- Weapons -->
+        <ui:VisualElement name="WeaponsInfo" class="weapons-info">
+            <ui:Label name="PrimaryWeapon" text="PHANTOM" class="weapon-label" />
+            <ui:Label name="SecondaryWeapon" text="GHOST" class="weapon-label" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

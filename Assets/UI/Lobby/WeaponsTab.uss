@@ -1,0 +1,528 @@
+/* ===================================
+   RYVALEN — WEAPONS TAB
+   Premium Tactical Arsenal View
+   Dual-Color: Orange vs Cyan
+   =================================== */
+
+/* ROOT */
+.weapons-tab-root {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    background-color: rgba(6, 6, 12, 0.96);
+}
+
+/* HEADER (for selection view) */
+.selection-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 20px;
+    height: 60px;
+    padding: 0;
+    width: 100%;
+}
+
+.back-button {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-width: 2px;
+    border-color: rgba(255, 75, 75, 0.5);
+    border-radius: 0;
+    padding: 10px 25px;
+    margin-right: 20px;
+
+    transition-property: background-color, border-color;
+    transition-duration: 0.2s;
+}
+
+.back-button:hover {
+    background-color: rgba(255, 75, 75, 0.15);
+    border-color: rgba(255, 75, 75, 0.9);
+}
+
+.back-button-text {
+    color: white;
+    font-size: 16px;
+    letter-spacing: 2px;
+    -unity-font-style: bold;
+}
+
+.selection-title {
+    color: white;
+    font-size: 30px;
+    letter-spacing: 4px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+/* MAIN VIEW */
+.main-view {
+    flex-grow: 1;
+    width: 100%;
+    padding: 20px;
+}
+
+.tab-title {
+    color: rgb(255, 95, 50);
+    font-size: 34px;
+    letter-spacing: 4px;
+    -unity-font-style: bold;
+    margin-bottom: 40px;
+    -unity-text-align: upper-center;
+    text-shadow: 0 0 20px rgba(255, 95, 50, 0.4);
+}
+
+.weapon-slots-container {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
+    gap: 50px;
+}
+
+.weapon-slot-wrapper {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* WEAPON SLOT BUTTONS (16:9 aspect ratio) */
+.weapon-slot-button {
+    width: 400px;
+    height: 225px;
+    background-color: rgba(10, 10, 16, 0.75);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+
+    /* Orange top accent */
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.4);
+
+    transition-property: background-color, border-color, border-top-color, scale;
+    transition-duration: 0.25s;
+}
+
+.weapon-slot-button:hover {
+    background-color: rgba(15, 15, 25, 0.85);
+    border-color: rgba(255, 107, 61, 0.3);
+    border-top-color: rgba(255, 107, 61, 0.8);
+    scale: 1.015;
+}
+
+.weapon-slot-button:active {
+    background-color: rgba(12, 12, 20, 0.9);
+    scale: 0.99;
+}
+
+.weapon-slot-content {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+}
+
+.weapon-slot-icon {
+    width: 100%;
+    flex-grow: 1;
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 0.92;
+}
+
+.weapon-slot-category {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 11px;
+    letter-spacing: 3px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-bottom: 6px;
+}
+
+.weapon-slot-name {
+    color: white;
+    font-size: 18px;
+    letter-spacing: 3px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-top: 8px;
+    text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* SELECTION VIEW */
+.selection-view {
+    flex-grow: 1;
+    width: 100%;
+    padding: 10px 20px;
+    flex-direction: column;
+}
+
+.weapons-grid {
+    flex-grow: 1;
+    flex-wrap: wrap;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-content: flex-start;
+    padding: 0 20px;
+    margin-bottom: 10px;
+}
+
+/* WEAPON CARD */
+.weapon-card {
+    width: 400px;
+    height: 225px;
+    background-color: rgba(10, 10, 16, 0.75);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 0;
+    margin: 10px;
+    cursor: pointer;
+    overflow: hidden;
+    flex-direction: column;
+    align-items: center;
+
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.3);
+
+    transition-property: background-color, border-color, border-top-color;
+    transition-duration: 0.22s;
+}
+
+.weapon-card:hover {
+    background-color: rgba(15, 15, 25, 0.85);
+    border-color: rgba(255, 255, 255, 0.2);
+    border-top-color: rgba(255, 107, 61, 0.6);
+}
+
+.weapon-card.selected {
+    border-color: rgba(255, 107, 61, 0.5);
+    border-width: 1px;
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.9);
+    background-color: rgba(255, 107, 61, 0.08);
+}
+
+.weapon-card-name {
+    color: white;
+    font-size: 14px;
+    letter-spacing: 2px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.weapon-card-icon {
+    width: 100%;
+    flex-grow: 1;
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 0.92;
+}
+
+/* BOTTOM CONTROLS */
+.bottom-controls {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    height: 90px;
+    padding: 6px 10px;
+    gap: 0;
+    width: 100%;
+}
+
+.lock-in-button {
+    width: 280px;
+    height: 72px;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: resource("Icons/GreenButton");
+    -unity-background-scale-mode: stretch-to-fill;
+    border-width: 0;
+    border-radius: 0;
+    color: white;
+    font-size: 20px;
+    letter-spacing: 3px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    left: 50%;
+    margin-left: -140px;
+
+    transition-property: opacity;
+    transition-duration: 0.2s;
+}
+
+.lock-in-button:hover {
+    opacity: 0.85;
+}
+
+.lock-in-button:active {
+    opacity: 0.7;
+}
+
+.lock-in-button:disabled {
+    opacity: 0.3;
+    color: rgba(255, 255, 255, 0.25);
+    cursor: default;
+}
+
+.skins-button {
+    width: 280px;
+    height: 72px;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: resource("Icons/RedButton");
+    -unity-background-scale-mode: stretch-to-fill;
+    border-width: 0;
+    border-radius: 0;
+    color: white;
+    font-size: 20px;
+    letter-spacing: 3px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    justify-content: center;
+    align-items: center;
+    align-self: center;
+    position: absolute;
+    left: 10px;
+
+    transition-property: opacity;
+    transition-duration: 0.2s;
+}
+
+.skins-button:hover {
+    opacity: 0.85;
+}
+
+/* ===================================
+   KNIFE SKINS VIEW
+   =================================== */
+.knife-skins-view {
+    flex-grow: 1;
+    width: 100%;
+    padding: 20px;
+}
+
+.skins-grid {
+    flex-grow: 1;
+    flex-wrap: wrap;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-content: flex-start;
+    padding: 0 20px;
+    margin-bottom: 10px;
+}
+
+.skins-grid .unity-scroll-view__content-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-content: flex-start;
+}
+
+/* KNIFE SKIN CARD */
+.knife-skin-card {
+    width: 400px;
+    height: 225px;
+    background-color: rgba(10, 10, 16, 0.75);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 0;
+    margin: 10px;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    overflow: hidden;
+
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.3);
+
+    transition-property: background-color, border-color, border-top-color;
+    transition-duration: 0.22s;
+}
+
+.knife-skin-card:hover {
+    background-color: rgba(15, 15, 25, 0.85);
+    border-color: rgba(255, 255, 255, 0.2);
+    border-top-color: rgba(255, 107, 61, 0.6);
+}
+
+.knife-skin-card.selected {
+    border-color: rgba(255, 107, 61, 0.5);
+    border-width: 1px;
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.9);
+    background-color: rgba(255, 107, 61, 0.08);
+}
+
+.knife-skin-card.locked {
+    opacity: 0.45;
+}
+
+.knife-skin-icon {
+    width: 100%;
+    flex-grow: 1;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.knife-skin-name {
+    color: white;
+    font-size: 14px;
+    letter-spacing: 2px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.knife-skin-cost {
+    color: rgba(255, 107, 61, 0.8);
+    font-size: 12px;
+    letter-spacing: 1px;
+    -unity-text-align: middle-center;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.knife-skin-lock-icon {
+    color: rgba(255, 90, 90, 0.8);
+    font-size: 20px;
+    -unity-text-align: middle-center;
+}
+
+.select-button {
+    width: 200px;
+    height: 48px;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: resource("Icons/GreenButton");
+    -unity-background-scale-mode: stretch-to-fill;
+    border-width: 0;
+    border-radius: 0;
+    color: white;
+    font-size: 18px;
+    letter-spacing: 3px;
+    -unity-font-style: bold;
+
+    transition-property: opacity;
+    transition-duration: 0.2s;
+}
+
+.select-button:hover {
+    opacity: 0.85;
+}
+
+.select-button:active {
+    opacity: 0.7;
+}
+
+.select-button:disabled {
+    opacity: 0.3;
+    color: rgba(255, 255, 255, 0.25);
+    cursor: default;
+}
+
+/* ===================================
+   WEAPON SKINS VIEW
+   =================================== */
+.weapon-skins-view {
+    flex-grow: 1;
+    width: 100%;
+    padding: 10px 20px;
+    flex-direction: column;
+}
+
+.weapon-skin-card {
+    width: 400px;
+    height: 225px;
+    background-color: rgba(10, 10, 16, 0.75);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 0;
+    margin: 10px;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    overflow: hidden;
+
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.3);
+
+    transition-property: background-color, border-color, border-top-color;
+    transition-duration: 0.22s;
+}
+
+.weapon-skin-card:hover {
+    background-color: rgba(15, 15, 25, 0.85);
+    border-color: rgba(255, 255, 255, 0.2);
+    border-top-color: rgba(255, 107, 61, 0.6);
+}
+
+.weapon-skin-card.selected {
+    border-color: rgba(255, 107, 61, 0.5);
+    border-width: 1px;
+    border-top-width: 2px;
+    border-top-color: rgba(255, 107, 61, 0.9);
+    background-color: rgba(255, 107, 61, 0.08);
+}
+
+.weapon-skin-card.locked {
+    opacity: 0.45;
+}
+
+.weapon-skin-name {
+    color: white;
+    font-size: 14px;
+    letter-spacing: 2px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.weapon-skin-icon {
+    width: 100%;
+    flex-grow: 1;
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 0.92;
+}
+
+.weapon-skin-cost {
+    color: rgba(255, 107, 61, 0.8);
+    font-size: 12px;
+    letter-spacing: 1px;
+    -unity-text-align: middle-center;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.weapon-skin-lock-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.45);
+    align-items: center;
+    justify-content: center;
+}
+
+.weapon-skin-lock-icon {
+    color: rgba(255, 90, 90, 0.85);
+    font-size: 36px;
+    -unity-text-align: middle-center;
+}
+
+/* UTILITY */
+.hidden {
+    display: none;
+}

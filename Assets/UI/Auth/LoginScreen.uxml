@@ -1,0 +1,147 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Auth/LoginScreen.uss?fileID=7433441132597879392&amp;guid=127b3aad82c5fad46a614a5ef0ff9c51&amp;type=3#LoginScreen" />
+    
+    <!-- Background Container -->
+    <ui:VisualElement name="background" class="background">
+        
+        <!-- Scan Line Overlay -->
+        <ui:VisualElement name="scan-overlay" class="scan-overlay" />
+        
+        <!-- Main Container -->
+        <ui:VisualElement name="main-container" class="main-container">
+            
+            <!-- Ryvalen Logo — always above the active panel -->
+            <ui:VisualElement name="rival-icon-watermark" class="rival-icon-watermark" />
+            
+            <!-- Login Panel -->
+            <ui:VisualElement name="login-panel" class="glass-panel">
+                
+                <!-- Corner Brackets -->
+                <ui:VisualElement class="corner-tl" />
+                <ui:VisualElement class="corner-tr" />
+                <ui:VisualElement class="corner-bl" />
+                <ui:VisualElement class="corner-br" />
+                
+                <!-- Title -->
+                <ui:Label text="LOGIN" name="errorText" class="status-text" />
+                
+                <!-- Decorative Divider -->
+                <ui:VisualElement class="divider-line" />
+                
+                <!-- Username Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◆" class="input-icon" />
+                    <ui:TextField placeholder-text="USERNAME" name="usernameField" class="custom-input" />
+                </ui:VisualElement>
+                
+                <!-- Password Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◆" class="input-icon" />
+                    <ui:TextField placeholder-text="PASSWORD" name="passwordField" class="custom-input" password="true" />
+                </ui:VisualElement>
+                
+                <!-- Login Button -->
+                <ui:Button text="PLAY" name="loginButton" class="btn-primary">
+                    <ui:VisualElement class="btn-shine" />
+                </ui:Button>
+                
+                <!-- Register Button -->
+                <ui:Button text="NEW ACCOUNT" name="registerButton" class="btn-secondary" />
+                
+                <!-- Tagline -->
+                <ui:Label text="PICK YOUR RIVAL" class="panel-tagline" />
+                
+            </ui:VisualElement>
+            
+            <!-- Register Panel (Hidden by default) -->
+            <ui:VisualElement name="register-panel" class="glass-panel hidden">
+                
+                <!-- Corner Brackets -->
+                <ui:VisualElement class="corner-tl" />
+                <ui:VisualElement class="corner-tr" />
+                <ui:VisualElement class="corner-bl" />
+                <ui:VisualElement class="corner-br" />
+                
+                <!-- Title -->
+                <ui:Label text="NEW ACCOUNT" name="registerErrorText" class="status-text" />
+                
+                <ui:VisualElement class="divider-line" />
+                
+                <!-- Username Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◆" class="input-icon" />
+                    <ui:TextField placeholder-text="USERNAME" name="registerUsernameField" class="custom-input" />
+                </ui:VisualElement>
+                
+                <!-- Password Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◆" class="input-icon" />
+                    <ui:TextField placeholder-text="PASSWORD" name="registerPasswordField" class="custom-input" password="true" />
+                </ui:VisualElement>
+                
+                <!-- Repeat Password Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◆" class="input-icon" />
+                    <ui:TextField placeholder-text="REPEAT PASSWORD" name="repeatPasswordField" class="custom-input" password="true" />
+                </ui:VisualElement>
+                
+                <!-- Player Name Field -->
+                <ui:VisualElement class="input-group">
+                    <ui:Label text="◈" class="input-icon icon-special" />
+                    <ui:TextField placeholder-text="PLAYER NAME" name="characterNameField" class="custom-input" />
+                </ui:VisualElement>
+                
+                <!-- Create Button -->
+                <ui:Button text="CREATE" name="createAccountButton" class="btn-primary">
+                    <ui:VisualElement class="btn-shine" />
+                </ui:Button>
+                
+                <!-- Back to Login Button -->
+                <ui:Button text="BACK" name="backToLoginButton" class="btn-secondary" />
+                
+            </ui:VisualElement>
+            
+            <!-- Success Panel (Hidden by default) -->
+            <ui:VisualElement name="success-panel" class="glass-panel hidden">
+                
+                <ui:VisualElement class="corner-tl corner-success" />
+                <ui:VisualElement class="corner-tr corner-success" />
+                <ui:VisualElement class="corner-bl corner-success" />
+                <ui:VisualElement class="corner-br corner-success" />
+                
+                <ui:Label text="✓ READY!" name="successTitle" class="status-text success-glow" />
+                <ui:VisualElement class="divider-line divider-success" />
+                <ui:Label text="Account created!" name="successMessage" class="success-message" />
+                <ui:Label text="" name="characterNameDisplay" class="character-display" />
+                <ui:Button text="LET'S GO" name="continueToLoginButton" class="btn-primary">
+                    <ui:VisualElement class="btn-shine" />
+                </ui:Button>
+                
+            </ui:VisualElement>
+            
+            <!-- Loading Overlay -->
+            <ui:VisualElement name="loading-overlay" class="loading-overlay hidden">
+                <ui:VisualElement name="loading-panel" class="loading-panel">
+                    <ui:VisualElement name="loading-spinner" class="loading-spinner">
+                        <ui:Label text="◢" class="spinner-segment" />
+                    </ui:VisualElement>
+                    <ui:Label name="loading-message" text="LOADING..." class="loading-message" />
+                    <ui:Label name="loading-subtext" text="CONNECTING" class="loading-subtext" />
+                    <ui:VisualElement class="loading-bar-bg">
+                        <ui:VisualElement name="loading-bar-fill" class="loading-bar-fill" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            
+        </ui:VisualElement>
+        
+        <!-- Version Tag (bottom-right) -->
+        <ui:Label text="RYVALEN // ALPHA" class="version-tag" />
+        
+        <!-- Mute Music Button (bottom-left) -->
+        <ui:Button name="muteButton" class="mute-button">
+            <ui:Label name="muteIcon" text="&#x266A;" class="mute-icon" />
+        </ui:Button>
+        
+    </ui:VisualElement>
+</ui:UXML>

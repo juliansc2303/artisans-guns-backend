@@ -1,0 +1,143 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <!--
+        MobileControls.uxml — UIToolkit replacement for the UGUI Canvas.
+        All interactive elements have picking-mode="Position".
+        Root is set to PickingMode.Ignore in MobileControlsController.
+        Camera-look touches (right side, outside buttons) fall through to EnhancedTouch.
+    -->
+
+    <!-- ── Joystick ──────────────────────────────────────────────────────── -->
+    <!-- Invisible catch area: bottom-left 45% × 60% of screen -->
+    <ui:VisualElement name="JoystickArea"
+        style="position: absolute; left: 0; bottom: 0; width: 45%; height: 60%;
+               background-color: rgba(0,0,0,0);" />
+
+    <!-- Base ring: hidden by default, repositioned by code on touch-down -->
+    <ui:VisualElement name="JoystickBase"
+        style="position: absolute; width: 130px; height: 130px;
+               border-radius: 65px;
+               background-color: rgba(255,255,255,0.10);
+               border-color: rgba(255,255,255,0.35); border-width: 2px;
+               display: none; picking-mode: ignore; overflow: visible;">
+        <ui:VisualElement name="JoystickThumb"
+            style="position: absolute; width: 56px; height: 56px;
+                   border-radius: 28px;
+                   background-color: rgba(255,255,255,0.55);
+                   top: 37px; left: 37px; picking-mode: ignore;" />
+    </ui:VisualElement>
+
+    <!-- ── Weapon Cells (top-right) ─────────────────────────────────────── -->
+    <ui:VisualElement name="WeaponCells"
+        style="position: absolute; top: 4px; right: 4px; flex-direction: row;">
+
+        <!-- Secondary — smaller, dimmer -->
+        <ui:VisualElement name="SecondaryWeaponCell"
+            style="width: 64px; height: 64px; margin: 2px;
+                   background-color: rgba(0,0,0,0.45);
+                   border-radius: 6px;
+                   border-color: rgba(180,180,180,0.3); border-width: 1px;
+                   align-items: center; justify-content: flex-end;">
+            <ui:VisualElement name="SecondaryWeaponIcon"
+                style="flex-grow: 1; width: 100%; background-size: contain;
+                       -unity-background-scale-mode: scale-to-fit;" />
+            <ui:Label name="SecondaryAmmoLabel" text="--"
+                style="color: rgb(200,200,200); font-size: 11px;
+                       -unity-font-style: bold; margin-bottom: 3px;" />
+        </ui:VisualElement>
+
+        <!-- Primary — larger, golden border -->
+        <ui:VisualElement name="PrimaryWeaponCell"
+            style="width: 76px; height: 70px; margin: 2px;
+                   background-color: rgba(0,0,0,0.55);
+                   border-radius: 6px;
+                   border-color: rgba(255,200,0,0.55); border-width: 2px;
+                   align-items: center; justify-content: flex-end;">
+            <ui:VisualElement name="PrimaryWeaponIcon"
+                style="flex-grow: 1; width: 100%; background-size: contain;
+                       -unity-background-scale-mode: scale-to-fit;" />
+            <ui:Label name="PrimaryAmmoLabel" text="--"
+                style="color: rgb(255,220,0); font-size: 13px;
+                       -unity-font-style: bold; margin-bottom: 3px;" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ── Ability buttons (right side, above fire) ──────────────────────── -->
+    <ui:VisualElement name="AbilityColumn"
+        style="position: absolute; right: 148px; bottom: 90px;
+               flex-direction: column; align-items: center;">
+
+        <!-- Ability 2 (e.g. CrimsonICanSee) -->
+        <ui:VisualElement name="Ability2Wrap"
+            style="width: 68px; height: 68px; margin: 5px;
+                   align-items: center; justify-content: center; overflow: visible;">
+            <!-- Radial cooldown overlay — replaced at runtime by CooldownDialElement -->
+            <ui:VisualElement name="Ability2Cooldown"
+                style="position: absolute; width: 100%; height: 100%; border-radius: 34px;
+                       picking-mode: ignore;" />
+            <ui:VisualElement name="Ability2Button"
+                style="width: 68px; height: 68px; border-radius: 34px;
+                       background-color: rgba(0,0,0,0.50);
+                       border-color: rgba(255,255,255,0.50); border-width: 2px;
+                       align-items: center; justify-content: center;">
+                <ui:VisualElement name="Ability2Icon"
+                    style="width: 46px; height: 46px; picking-mode: ignore;
+                           -unity-background-scale-mode: scale-to-fit;" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Ability 1 (e.g. CrimsonSmoke) -->
+        <ui:VisualElement name="Ability1Wrap"
+            style="width: 68px; height: 68px; margin: 5px;
+                   align-items: center; justify-content: center; overflow: visible;">
+            <ui:VisualElement name="Ability1Cooldown"
+                style="position: absolute; width: 100%; height: 100%; border-radius: 34px;
+                       picking-mode: ignore;" />
+            <ui:VisualElement name="Ability1Button"
+                style="width: 68px; height: 68px; border-radius: 34px;
+                       background-color: rgba(0,0,0,0.50);
+                       border-color: rgba(255,255,255,0.50); border-width: 2px;
+                       align-items: center; justify-content: center;">
+                <ui:VisualElement name="Ability1Icon"
+                    style="width: 46px; height: 46px; picking-mode: ignore;
+                           -unity-background-scale-mode: scale-to-fit;" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- ── Knife button ──────────────────────────────────────────────────── -->
+    <ui:VisualElement name="KnifeButton"
+        style="position: absolute; right: 230px; bottom: 12px;
+               width: 70px; height: 70px; border-radius: 35px;
+               background-color: rgba(0,0,0,0.45);
+               border-color: rgba(220,220,220,0.45); border-width: 2px;
+               align-items: center; justify-content: center;">
+        <ui:VisualElement name="KnifeIcon"
+            style="width: 48px; height: 48px; picking-mode: ignore;
+                   -unity-background-scale-mode: scale-to-fit;" />
+    </ui:VisualElement>
+
+    <!-- ── Fire button (large, left side above joystick) ─────────────────── -->
+    <ui:VisualElement name="FireButton"
+        style="position: absolute; left: 20px; bottom: 55%;
+               width: 150px; height: 150px; border-radius: 75px;
+               background-color: rgba(195,75,0,0.68);
+               border-color: rgba(255,145,45,0.88); border-width: 3px;
+               align-items: center; justify-content: center;">
+        <ui:VisualElement name="FireIcon"
+            style="width: 94px; height: 94px; picking-mode: ignore;
+                   -unity-background-scale-mode: scale-to-fit;" />
+    </ui:VisualElement>
+
+    <!-- ── Reload button ─────────────────────────────────────────────────── -->
+    <ui:VisualElement name="ReloadButton"
+        style="position: absolute; right: 56px; bottom: 6px;
+               width: 72px; height: 72px; border-radius: 36px;
+               background-color: rgba(0,15,80,0.52);
+               border-color: rgba(90,140,255,0.72); border-width: 2px;
+               align-items: center; justify-content: center;">
+        <ui:VisualElement name="ReloadIcon"
+            style="width: 48px; height: 48px; picking-mode: ignore;
+                   -unity-background-scale-mode: scale-to-fit;" />
+    </ui:VisualElement>
+
+</ui:UXML>

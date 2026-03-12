@@ -1,0 +1,95 @@
+/* Mini Player Card Styles for Room Screen */
+
+.player-card {
+    display: flex;
+    width: 100%;
+    min-height: 120px;
+    max-height: 140px;
+    background-color: rgba(255, 160, 40, 0.3); /* BRIGHT BACKGROUND FOR DEBUGGING */
+    border-width: 1px;
+    border-color: rgb(45, 45, 50);
+    border-left-width: 3px;
+    border-left-color: rgb(255, 160, 40);
+    padding: 12px;
+    margin-bottom: 10px;
+    flex-direction: column;
+}
+
+.card-header {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 160, 40, 0.2);
+}
+
+.player-name {
+    display: flex;
+    font-size: 13px;
+    color: rgb(255, 160, 40);
+    letter-spacing: 2px;
+    -unity-font-style: bold;
+    min-height: 16px;
+}
+
+.player-level {
+    display: flex;
+    font-size: 11px;
+    color: rgb(180, 180, 190);
+    letter-spacing: 1px;
+    -unity-font-style: bold;
+    min-height: 14px;
+}
+
+.character-info {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.character-name {
+    display: flex;
+    font-size: 16px;
+    color: rgb(255, 160, 40);
+    -unity-font-style: bold;
+    letter-spacing: 2px;
+    min-height: 20px;
+}
+
+.weapons-info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.weapon-label {
+    display: flex;
+    font-size: 11px;
+    color: rgb(220, 220, 225);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-left-width: 2px;
+    border-left-color: rgba(255, 160, 40, 0.3);
+    min-height: 22px;
+}
+
+/* Host indicator */
+.player-card.host {
+    border-left-color: rgb(255, 200, 40);
+    background-color: rgba(255, 160, 40, 0.05);
+}
+
+/* Local player highlight */
+.player-card.local {
+    border-color: rgb(80, 160, 255);
+    border-left-color: rgb(80, 160, 255);
+}
+
+/* Ready state */
+.player-card.ready {
+    opacity: 0.7;
+}

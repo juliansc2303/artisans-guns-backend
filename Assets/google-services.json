@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "329775748159",
+    "project_id": "birdhead-d3887",
+    "storage_bucket": "birdhead-d3887.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:329775748159:android:5a0213d4b8e339607a148a",
+        "android_client_info": {
+          "package_name": "com.artesanogames.birdhead"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "329775748159-7sl2lkkk43o0db3tmiuenm733lf7vo23.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.artesanogames.birdhead",
+            "certificate_hash": "64a144fda220c5fe06829e2136ede51cf116f157"
+          }
+        },
+        {
+          "client_id": "329775748159-rpa281r9048p1jobrvh3qdsss1e6h9f0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.artesanogames.birdhead",
+            "certificate_hash": "87315ceeb0a9e80c9db7b9768b45d6d3aad77621"
+          }
+        },
+        {
+          "client_id": "329775748159-oj54pn4q1l2e13khrkfk76105117q18n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWfD82N_qN250-4dEzxJG0bobC5RS-xVw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "329775748159-oj54pn4q1l2e13khrkfk76105117q18n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,33 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" engine="UnityEngine.UIElements" editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <!-- Mini Player Card Component for Room Screen - Matches Lobby Card Layout -->
+    <!-- Styles applied via code inline (IStyle API) -->
+    <ui:VisualElement name="PlayerCard" class="player-card">
+        <!-- Username Panel (top bar with username and host crown) -->
+        <ui:VisualElement name="UsernamePanel" class="username-panel">
+            <ui:Label name="Username" text="Player" class="username-label" />
+            <ui:Label name="HostCrown" text="👑" class="host-crown" />
+        </ui:VisualElement>
+        
+        <!-- Header: IDENT // CHARACTER -->
+        <ui:Label name="CardHeader" text="IDENT // CHARACTER" class="card-header" />
+        
+        <!-- Agent/Character name (large) -->
+        <ui:Label name="AgentName" text="CRIMSON" class="agent-name" />
+        
+        <!-- Ready Badge (shown when player is ready) -->
+        <ui:Label name="ReadyBadge" text="✓ READY" class="ready-badge" />
+        
+        <!-- Character Icon -->
+        <ui:VisualElement name="CharacterIcon" class="character-icon" />
+        
+        <!-- Weapons section -->
+        <ui:Label name="WeaponsHeader" text="WEAPONS" class="weapons-header" />
+        <ui:VisualElement name="WeaponsInfo" class="weapons-info">
+            <ui:Label name="PrimaryWeapon" text="PHANTOM // PRIMARY" class="weapon-label" />
+            <ui:Label name="SecondaryWeapon" text="GHOST // SECONDARY" class="weapon-label" />
+        </ui:VisualElement>
+        
+        <!-- Level at bottom -->
+        <ui:Label name="Level" text="LVL 1" class="player-level" />
+    </ui:VisualElement>
+</ui:UXML>

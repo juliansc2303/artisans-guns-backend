@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3c993c40c6a81e4bbe36ba66265a508, type: 3}
+  m_Name: pato
+  m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Characters.CharacterConfig
+  characterId: pato
+  tpvMesh: {fileID: 8244515782061576683, guid: f91658a4aa7751745b6106f3679ddfe0, type: 3}
+  tpvMaterials:
+  - {fileID: 2100000, guid: 75fa6a8ad7159ca48a24605b77c73b36, type: 2}
+  armsMesh: {fileID: 8244515782061576683, guid: 174ad2933258d7146ae01dacf1717185, type: 3}
+  armsMaterials:
+  - {fileID: 2100000, guid: 75fa6a8ad7159ca48a24605b77c73b36, type: 2}
+  ability1: {fileID: 11400000, guid: f20093e9f98986c40b7fa1733ef37741, type: 2}
+  ability2: {fileID: 11400000, guid: bd62b4e3180d968438959df920651cb7, type: 2}
+  ultimate: {fileID: 11400000, guid: bdb2d1738b322df4d8c758ab672dea66, type: 2}
+  deathVFXPrefab: {fileID: 7531845894394634133, guid: 3b2b3840d5985b34fb7f0fb8f3adbff4, type: 3}
+  deathVFXDuration: 3

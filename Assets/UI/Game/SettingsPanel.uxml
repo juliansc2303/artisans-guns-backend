@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="UnityEngine.UIElements"
+    xmlns:uie="UnityEditor.UIElements"
+    xsi:noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd"
+>
+    <!-- FULL SCREEN SETTINGS PANEL - NO TRANSPARENCY -->
+    <ui:VisualElement name="SettingsPanel" class="settings-panel-root">
+        
+        <!-- Title Bar -->
+        <ui:VisualElement class="settings-header">
+            <ui:Label text="SETTINGS" class="settings-title" />
+            <ui:Button name="CloseSettingsButton" class="settings-close-btn">
+                <ui:Label text="X" />
+            </ui:Button>
+        </ui:VisualElement>
+        
+        <!-- Content Area -->
+        <ui:ScrollView class="settings-content">
+            
+            <!-- GENERAL SECTION -->
+            <ui:VisualElement class="settings-section">
+                <ui:Label text="GENERAL" class="settings-section-title" />
+                
+                <!-- Sensitivity Setting -->
+                <ui:VisualElement class="settings-item">
+                    <ui:Label text="Mouse Sensitivity" class="settings-label" />
+                    <ui:VisualElement class="settings-value-row">
+                        <ui:Slider name="SensitivitySlider" class="settings-slider" 
+                                   low-value="1" high-value="100" value="6"
+                                   show-input-field="false" />
+                        <ui:Label name="SensitivityValueLabel" text="2.0" class="settings-value-label" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                
+            </ui:VisualElement>
+            
+            <!-- AUDIO SECTION -->
+            <ui:VisualElement class="settings-section">
+                <ui:Label text="AUDIO" class="settings-section-title" />
+                
+                <!-- Music Volume Setting -->
+                <ui:VisualElement class="settings-item">
+                    <ui:Label text="Music Volume" class="settings-label" />
+                    <ui:VisualElement class="settings-value-row">
+                        <ui:Slider name="MusicVolumeSlider" class="settings-slider" 
+                                   low-value="0" high-value="1" value="0.12"
+                                   show-input-field="false" />
+                        <ui:Label name="MusicVolumeValueLabel" text="12%" class="settings-value-label" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                
+            </ui:VisualElement>
+            
+        </ui:ScrollView>
+        
+        <!-- Footer / Buttons -->
+        <ui:VisualElement class="settings-footer">
+            <ui:Button name="LogoutButton" text="LOGOUT" class="settings-btn-logout" />
+        </ui:VisualElement>
+        
+    </ui:VisualElement>
+</ui:UXML>

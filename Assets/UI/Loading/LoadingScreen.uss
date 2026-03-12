@@ -1,0 +1,59 @@
+/* =========================================================
+   LoadingScreen.uss — Full-screen loading overlay
+   ========================================================= */
+
+.loading-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgb(10, 10, 14);
+    justify-content: center;
+    align-items: center;
+}
+
+.loading-content {
+    align-items: center;
+    justify-content: center;
+}
+
+.game-title {
+    font-size: 64px;
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    letter-spacing: 12px;
+    margin-bottom: 40px;
+}
+
+.loading-label {
+    font-size: 22px;
+    color: rgb(180, 180, 190);
+    -unity-font-style: bold;
+    letter-spacing: 6px;
+    margin-bottom: 20px;
+}
+
+.progress-bar-bg {
+    width: 400px;
+    height: 6px;
+    background-color: rgb(40, 40, 50);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background-color: rgb(90, 160, 255);
+    border-radius: 3px;
+    transition-property: width;
+    transition-duration: 0.15s;
+}
+
+.progress-text {
+    font-size: 14px;
+    color: rgb(120, 120, 140);
+    margin-top: 10px;
+    -unity-font-style: bold;
+}

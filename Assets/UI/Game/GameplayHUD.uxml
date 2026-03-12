@@ -1,0 +1,403 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <Style src="GameplayHUD.uss" />
+    <Style src="SettingsPanel.uss" />
+    <!-- ROOT CONTAINER -->
+    <ui:VisualElement name="Root" class="root">
+        
+        <!-- PRE-MATCH CEREMONY: top banner (always visible during warmup) -->
+        <ui:VisualElement name="CeremonyBanner" class="ceremony-banner">
+            <ui:Label text="TEAM DEATHMATCH" name="CeremonyGamemode" class="ceremony-gamemode" />
+            <ui:Label text="WAITING FOR PLAYERS..." name="CeremonyStatus" class="ceremony-status" />
+            <ui:Label text="1 / 2 PLAYERS" name="CeremonyPlayers" class="ceremony-players" />
+        </ui:VisualElement>
+
+        <!-- CROSSHAIR + HIT MARKER (always centred on screen) -->
+        <ui:VisualElement name="CrosshairContainer" class="crosshair-container" picking-mode="Ignore">
+
+            <!-- Default reticle: small dot (style 0, changeable later) -->
+            <ui:VisualElement name="CrosshairDot" picking-mode="Ignore" />
+
+            <!-- X reticle: 4 diagonal arms (style 1, hidden by default) -->
+            <ui:VisualElement name="ReticleX" class="hidden" picking-mode="Ignore">
+                <ui:VisualElement class="reticle-x-arm reticle-x-tl" picking-mode="Ignore" />
+                <ui:VisualElement class="reticle-x-arm reticle-x-tr" picking-mode="Ignore" />
+                <ui:VisualElement class="reticle-x-arm reticle-x-bl" picking-mode="Ignore" />
+                <ui:VisualElement class="reticle-x-arm reticle-x-br" picking-mode="Ignore" />
+            </ui:VisualElement>
+
+            <!-- Hit marker anchor (56x56 centred) — 4 diagonal red arms appear on hit -->
+            <ui:VisualElement name="HitmarkerAnchor" picking-mode="Ignore">
+                <ui:VisualElement name="HitmarkerTL" class="hitmarker-arm" picking-mode="Ignore" />
+                <ui:VisualElement name="HitmarkerTR" class="hitmarker-arm" picking-mode="Ignore" />
+                <ui:VisualElement name="HitmarkerBL" class="hitmarker-arm" picking-mode="Ignore" />
+                <ui:VisualElement name="HitmarkerBR" class="hitmarker-arm" picking-mode="Ignore" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+
+        <!-- PLAYER HUD - MIDDLE BOTTOM -->
+        <ui:VisualElement name="PlayerHUD" class="player-hud-bottom">
+            <!-- Health Bar Container -->
+            <ui:VisualElement class="health-container">
+                <!-- Health Text -->
+                <ui:Label text="150" name="HealthText" class="health-value-text" />
+                
+                <!-- Health Bar Background -->
+                <ui:VisualElement class="health-bar-bg">
+                    <!-- Health Bar Fill -->
+                    <ui:VisualElement name="HealthFill" class="health-bar-fill-main" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- ── MOBILE CONTROLS ────────────────────────────────────────────── -->
+        <!-- Joystick invisible catch area (bottom-left 45% × 60%) -->
+        <ui:VisualElement name="JoystickArea"
+            style="position: absolute; left: 0; bottom: 0; width: 45%; height: 60%;
+                   background-color: rgba(0,0,0,0);" />
+
+        <!-- Joystick base ring: hidden by default, shown/moved by code on touch -->
+        <ui:VisualElement name="JoystickBase"
+            style="position: absolute; width: 160px; height: 160px; border-radius: 80px;
+                   background-color: rgba(255,255,255,0.10);
+                   border-color: rgba(255,255,255,0.35); border-width: 2px;
+                   display: none; picking-mode: ignore; overflow: visible;">
+            <ui:VisualElement name="JoystickThumb"
+                style="position: absolute; width: 70px; height: 70px; border-radius: 35px;
+                       background-color: rgba(255,255,255,0.55);
+                       top: 45px; left: 45px; picking-mode: ignore;" />
+        </ui:VisualElement>
+
+        <!-- Weapon area — vertical column: pick card → drop → slot row -->
+        <ui:VisualElement name="WeaponCells"
+            style="position: absolute; bottom: 310px; right: 10px;
+                   flex-direction: column; align-items: flex-end;">
+            <!-- Pick and Drop buttons are injected here by code (above the slot row) -->
+            <!-- Slot row: secondary + primary cells side by side -->
+            <ui:VisualElement name="WeaponSlotRow"
+                style="flex-direction: row; align-items: flex-end;">
+                <ui:VisualElement name="SecondaryWeaponCell"
+                    style="width: 96px; height: 96px; margin: 3px;
+                           background-color: rgba(0,0,0,0.45); border-radius: 8px;
+                           border-color: rgba(160,160,160,0.30); border-width: 1px;
+                           align-items: center; justify-content: flex-end; overflow: hidden;">
+                    <ui:VisualElement name="SecondaryWeaponIcon"
+                        style="flex-grow: 1; width: 100%; -unity-background-scale-mode: scale-to-fit;" />
+                    <ui:Label name="SecondaryAmmoLabel" text="--"
+                        style="color: rgb(190,190,190); font-size: 14px; -unity-font-style: bold; margin-bottom: 3px;" />
+                </ui:VisualElement>
+                <ui:VisualElement name="PrimaryWeaponCell"
+                    style="width: 96px; height: 96px; margin: 3px;
+                           background-color: rgba(0,0,0,0.45); border-radius: 8px;
+                           border-color: rgba(160,160,160,0.30); border-width: 1px;
+                           align-items: center; justify-content: flex-end; overflow: hidden;">
+                    <ui:VisualElement name="PrimaryWeaponIcon"
+                        style="flex-grow: 1; width: 100%; -unity-background-scale-mode: scale-to-fit;" />
+                    <ui:Label name="PrimaryAmmoLabel" text="--"
+                        style="color: rgb(190,190,190); font-size: 14px; -unity-font-style: bold; margin-bottom: 3px;" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Ability column — abilities 1 & 2 -->
+        <ui:VisualElement name="AbilityColumn"
+            style="position: absolute; right: 330px; bottom: 60px;
+                   flex-direction: column; align-items: center;">
+            <ui:VisualElement name="Ability2Wrap"
+                style="width: 100px; height: 100px; margin: 8px; margin-top: -20px;
+                       align-items: center; justify-content: center; overflow: visible;">
+                <!-- Placeholder replaced by CooldownDialElement ring in code -->
+                <ui:VisualElement name="Ability2Cooldown"
+                    style="position: absolute; width: 100%; height: 100%; picking-mode: ignore;" />
+                <!-- Button: icon fills entire circle, no background -->
+                <ui:VisualElement name="Ability2Button"
+                    style="width: 88px; height: 88px; border-radius: 44px; overflow: hidden;">
+                    <ui:VisualElement name="Ability2Icon"
+                        style="width: 100%; height: 100%;
+                               picking-mode: ignore; -unity-background-scale-mode: scale-to-fit;" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="Ability1Wrap"
+                style="width: 100px; height: 100px; margin: 8px;
+                       align-items: center; justify-content: center; overflow: visible;">
+                <ui:VisualElement name="Ability1Cooldown"
+                    style="position: absolute; width: 100%; height: 100%; picking-mode: ignore;" />
+                <ui:VisualElement name="Ability1Button"
+                    style="width: 88px; height: 88px; border-radius: 44px; overflow: hidden;">
+                    <ui:VisualElement name="Ability1Icon"
+                        style="width: 100%; height: 100%;
+                               picking-mode: ignore; -unity-background-scale-mode: scale-to-fit;" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Ultimate ability — LEFT of ability column, slightly above health bar -->
+        <ui:VisualElement name="UltimateWrap"
+            style="position: absolute; right: 500px; bottom: 100px;
+                   width: 116px; height: 116px;
+                   align-items: center; justify-content: center; overflow: visible;">
+            <ui:VisualElement name="UltimateButton"
+                style="width: 104px; height: 104px; border-radius: 52px; overflow: hidden;
+                       opacity: 0.35;">
+                <ui:VisualElement name="UltimateIcon"
+                    style="width: 100%; height: 100%;
+                           picking-mode: ignore; -unity-background-scale-mode: scale-to-fit;" />
+            </ui:VisualElement>
+            <!-- Row of 5 dots below the icon (filled programmatically) -->
+            <ui:VisualElement name="UltimateDots"
+                style="flex-direction: row; margin-top: 4px; justify-content: center;
+                       align-items: center; picking-mode: ignore;" />
+        </ui:VisualElement>
+
+        <!-- Reload button — bottom-right corner -->
+        <ui:VisualElement name="ReloadButton"
+            style="position: absolute; right: 10px; bottom: 10px;
+                   width: 120px; height: 120px;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- Knife button — just above reload -->
+        <ui:VisualElement name="KnifeButton"
+            style="position: absolute; right: 14px; bottom: 145px;
+                   width: 105px; height: 105px;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- Fire button — left side, above joystick area, larger -->
+        <ui:VisualElement name="FireButton"
+            style="position: absolute; left: 150px; bottom: 42%;
+                   width: 200px; height: 200px;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- Jump button — to the left of knife button -->
+        <ui:VisualElement name="JumpButton"
+            style="position: absolute; right: 145px; bottom: 145px;
+                   width: 115px; height: 115px;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- Crouch button — to the left of reload button -->
+        <ui:VisualElement name="CrouchButton"
+            style="position: absolute; right: 145px; bottom: 10px;
+                   width: 115px; height: 115px;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- Stand button — same slot as Crouch, hidden by default -->
+        <ui:VisualElement name="StandButton"
+            style="position: absolute; right: 145px; bottom: 10px;
+                   width: 115px; height: 115px;
+                   display: none;
+                   -unity-background-scale-mode: scale-to-fit;" />
+
+        <!-- PRE-MATCH CEREMONY: countdown overlay (visible only during 3-2-1 freeze)
+             Placed here so it renders ABOVE health, joystick, fire, abilities
+             but BELOW Scoreboard/Settings/Scores which follow -->
+        <ui:VisualElement name="CeremonyCountdownOverlay" class="ceremony-countdown-overlay hidden">
+            <ui:Label text="TEAM DEATHMATCH" name="CeremonyOverlayGamemode" class="ceremony-overlay-gamemode" />
+            <ui:Label text="MATCH STARTING" name="CeremonyOverlayStatus" class="ceremony-overlay-status" />
+            <ui:Label text="" name="CeremonyCountdown" class="ceremony-countdown" />
+            <ui:Label text="2 / 2 PLAYERS" name="CeremonyOverlayPlayers" class="ceremony-overlay-players" />
+        </ui:VisualElement>
+
+        <!-- === ABOVE-OVERLAY LAYER: these render ON TOP of the countdown overlay === -->
+
+        <!-- DEATHMATCH SCOREBOARD - TOP CENTER -->
+        <ui:VisualElement name="Scoreboard" class="scoreboard-container">
+            <!-- Team A Block -->
+            <ui:VisualElement class="sb-team-block sb-team-a">
+                <ui:Label text="A" class="sb-team-tag tag-a" />
+                <ui:Label text="100" name="TeamAScore" class="sb-score" />
+            </ui:VisualElement>
+            <!-- Center: Timer + Goal -->
+            <ui:VisualElement class="sb-center">
+                <ui:Label text="10:00" name="GameTimer" class="sb-timer" />
+                <ui:Label text="/ 100" name="GoalText" class="sb-goal" />
+            </ui:VisualElement>
+            <!-- Team B Block -->
+            <ui:VisualElement class="sb-team-block sb-team-b">
+                <ui:Label text="100" name="TeamBScore" class="sb-score" />
+                <ui:Label text="B" class="sb-team-tag tag-b" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- SETTINGS BUTTON - Top Right -->
+        <ui:Button name="SettingsButton" class="settings-button">
+            <ui:VisualElement name="SettingsIcon" class="settings-icon-large" />
+        </ui:Button>
+
+        <!-- KILL FEED - Top Right -->
+        <ui:VisualElement name="KillFeedContainer" class="kill-feed-container" />
+
+        <!-- SCORES BUTTON - Top Left -->
+        <ui:Button name="ScoresButton" class="scores-tab-button">
+            <ui:Label text="SCORES" class="scores-tab-label" />
+        </ui:Button>
+
+        <!-- JOIN / LEAVE NOTIFICATIONS - below Scores button, top-left -->
+        <ui:VisualElement name="NotificationContainer" picking-mode="Ignore"
+            style="position: absolute; top: 116px; left: 12px;
+                   flex-direction: column; width: 280px;" />
+
+        <!-- SCORES OVERLAY (hidden by default) -->
+        <ui:VisualElement name="ScoresOverlay" class="scores-overlay hidden">
+            <ui:VisualElement class="scores-panel">
+                <ui:VisualElement class="scores-header">
+                    <ui:Label text="SCOREBOARD" class="scores-title" />
+                    <ui:Button name="ScoresCloseButton" text="&#x2715;" class="scores-close-btn" />
+                </ui:VisualElement>
+                <ui:VisualElement class="scores-teams-row">
+                    <ui:VisualElement class="scores-team-col scores-team-a-col">
+                        <ui:VisualElement class="scores-team-header-row">
+                            <ui:Label text="TEAM A" class="scores-team-label scores-team-a-label" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="TeamAPlayerList" class="scores-player-list" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="scores-divider" />
+                    <ui:VisualElement class="scores-team-col scores-team-b-col">
+                        <ui:VisualElement class="scores-team-header-row">
+                            <ui:Label text="TEAM B" class="scores-team-label scores-team-b-label" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="TeamBPlayerList" class="scores-player-list" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- CEREMONY RESULT OVERLAY — Phase 1: big VICTORIA/DERROTA text with slow-mo -->
+        <ui:VisualElement name="CeremonyResultOverlay" class="ceremony-result-overlay hidden" picking-mode="Ignore">
+            <ui:VisualElement name="CeremonyResultGlow" class="ceremony-result-glow" />
+            <ui:Label text="" name="CeremonyResultText" class="ceremony-result-text" />
+            <ui:Label text="" name="CeremonyResultSub" class="ceremony-result-sub" />
+        </ui:VisualElement>
+
+        <!-- POST-MATCH OVERLAY (hidden by default, shown when match ends) -->
+        <ui:VisualElement name="PostMatchOverlay" class="post-match-overlay hidden" picking-mode="Ignore">
+            <!-- Result Banner (VICTORIA / DERROTA / EMPATE) -->
+            <ui:Label text="VICTORIA" name="PostMatchResult" class="post-match-result" />
+            <!-- Team Score Summary -->
+            <ui:VisualElement class="post-match-score-row">
+                <ui:VisualElement class="post-match-team-block post-match-team-a">
+                    <ui:Label text="TEAM A" class="post-match-team-label" />
+                    <ui:Label text="0" name="PostMatchScoreA" class="post-match-score" />
+                </ui:VisualElement>
+                <ui:Label text="VS" class="post-match-vs" />
+                <ui:VisualElement class="post-match-team-block post-match-team-b">
+                    <ui:Label text="TEAM B" class="post-match-team-label" />
+                    <ui:Label text="0" name="PostMatchScoreB" class="post-match-score" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <!-- Full Scoreboard Panel (all players, K/D, coins) -->
+            <ui:VisualElement name="PostMatchScoreboard" class="pm-scoreboard">
+                <ui:VisualElement class="pm-teams-row">
+                    <!-- Team A Column -->
+                    <ui:VisualElement class="pm-team-col pm-team-a-col">
+                        <ui:VisualElement class="pm-team-header">
+                            <ui:Label text="TEAM A" class="pm-team-title pm-team-a-title" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="pm-col-headers">
+                            <ui:Label text="" class="pm-col-spacer" />
+                            <ui:Label text="K" class="pm-col-header" />
+                            <ui:Label text="D" class="pm-col-header" />
+                            <ui:Label text="HS" class="pm-col-header" />
+                            <ui:Label text="CK" class="pm-col-header" />
+                            <ui:Label text="XP" class="pm-col-header pm-col-xp" />
+                            <ui:Label text="COINS" class="pm-col-header pm-col-coins" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="PostMatchTeamAList" class="pm-player-list" />
+                    </ui:VisualElement>
+                    <!-- Divider -->
+                    <ui:VisualElement class="pm-divider" />
+                    <!-- Team B Column -->
+                    <ui:VisualElement class="pm-team-col pm-team-b-col">
+                        <ui:VisualElement class="pm-team-header">
+                            <ui:Label text="TEAM B" class="pm-team-title pm-team-b-title" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="pm-col-headers">
+                            <ui:Label text="" class="pm-col-spacer" />
+                            <ui:Label text="K" class="pm-col-header" />
+                            <ui:Label text="D" class="pm-col-header" />
+                            <ui:Label text="HS" class="pm-col-header" />
+                            <ui:Label text="CK" class="pm-col-header" />
+                            <ui:Label text="XP" class="pm-col-header pm-col-xp" />
+                            <ui:Label text="COINS" class="pm-col-header pm-col-coins" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="PostMatchTeamBList" class="pm-player-list" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Settings Panel Overlay -->
+        <ui:VisualElement name="SettingsPanel" class="settings-panel-root hidden">
+            
+            <!-- Title Bar -->
+            <ui:VisualElement class="settings-header">
+                <ui:Label text="SETTINGS" class="settings-title" />
+                <ui:VisualElement class="settings-header-right">
+                    <ui:Button name="CloseSettingsButton" class="settings-close-btn">
+                        <ui:Label text="X" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="RoomCodeSection" class="settings-room-code-center hidden">
+                <ui:Label text="ROOM CODE" class="room-code-label-sm" />
+                <ui:Label name="SettingsRoomCodeLabel" text="" class="room-code-value-sm" />
+            </ui:VisualElement>
+            
+            <!-- Content Area -->
+            <ui:ScrollView class="settings-content">
+                
+                <!-- GENERAL SECTION -->
+                <ui:VisualElement class="settings-section">
+                    <ui:Label text="GENERAL" class="settings-section-title" />
+                    
+                    <!-- Sensitivity Setting -->
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label text="Mouse Sensitivity" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Slider name="SensitivitySlider" class="settings-slider" 
+                                       low-value="1" high-value="100" value="6"
+                                       show-input-field="false" />
+                            <ui:Label name="SensitivityValueLabel" text="2.0" class="settings-value-label" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    
+                </ui:VisualElement>
+
+                <!-- AUDIO SECTION -->
+                <ui:VisualElement class="settings-section">
+                    <ui:Label text="AUDIO" class="settings-section-title" />
+                    
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label text="Music Volume" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Slider name="MusicVolumeSlider" class="settings-slider" 
+                                       low-value="0" high-value="1" value="0.12"
+                                       show-input-field="false" />
+                            <ui:Label name="MusicVolumeValueLabel" text="12%" class="settings-value-label" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    
+                </ui:VisualElement>
+                
+            </ui:ScrollView>
+            
+            <!-- Footer / Buttons -->
+            <ui:VisualElement class="settings-footer">
+                <ui:Button name="ExitGameButton" text="EXIT" class="settings-btn-action" />
+            </ui:VisualElement>
+            
+            <!-- Exit Confirm Dialog -->
+            <ui:VisualElement name="ExitConfirmOverlay" class="exit-confirm-overlay hidden">
+                <ui:VisualElement class="exit-confirm-box">
+                    <ui:Label text="EXIT MATCH?" class="exit-confirm-title" />
+                    <ui:Label text="You won't receive rewards if you leave now." class="exit-confirm-msg" />
+                    <ui:VisualElement class="exit-confirm-buttons">
+                        <ui:Button name="ExitConfirmYes" text="LEAVE" class="exit-confirm-btn exit-confirm-yes" />
+                        <ui:Button name="ExitConfirmNo" text="STAY" class="exit-confirm-btn exit-confirm-no" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

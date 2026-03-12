@@ -1,0 +1,94 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" engine="UnityEngine.UIElements" editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="RoomScreen.uss" />
+    
+    <ui:VisualElement name="Background" class="background">
+        <ui:VisualElement name="MainContainer" class="main-container">
+            
+            <!-- ROOM TAB CONTENT (current room view) -->
+            <ui:VisualElement name="RoomContent" class="tab-content room-content">
+                <!-- Teams Layout -->
+                <ui:VisualElement name="ContentArea" class="content-area">
+                <ui:VisualElement name="TeamsContainer" style="flex-direction: row; flex-grow: 1;">
+                    
+                    <!-- ALPHA TEAM -->
+                    <ui:VisualElement name="TeamAPanel" class="panel team-panel">
+                        <ui:Label text="TEAM A" class="panel-title" />
+                        <ui:ScrollView name="TeamAList" class="players-list">
+                            <!-- Players go here -->
+                        </ui:ScrollView>
+                    </ui:VisualElement>
+                    
+                    <!-- BRAVO TEAM -->
+                    <ui:VisualElement name="TeamBPanel" class="panel team-panel">
+                        <ui:Label text="TEAM B" class="panel-title" />
+                        <ui:ScrollView name="TeamBList" class="players-list">
+                            <!-- Players go here -->
+                        </ui:ScrollView>
+                    </ui:VisualElement>
+                    
+                </ui:VisualElement>
+            </ui:VisualElement>
+            
+            <!-- Map Info Panel -->
+            <ui:VisualElement name="MapInfoPanel" class="map-info-panel">
+                <!-- Left Side: Room Details -->
+                <ui:VisualElement name="MapDetails" class="map-details">
+                    <ui:Label name="MapHeaderLabel" text="DEFAULT MAP" class="map-header-label" />
+                    <ui:VisualElement name="RoomDetails" class="room-details-list">
+                        <ui:Label name="RoomIdLabel" text="ROOM ID // 12345" class="detail-item" />
+                        <ui:Label name="GameModeLabel" text="MODE // DEATHMATCH" class="detail-item" />
+                        <ui:Label name="MaxPlayersLabel" text="CAPACITY // 10" class="detail-item" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                
+                <!-- Center: Map Preview -->
+                <ui:VisualElement name="MapPreview" class="map-preview">
+                    <ui:VisualElement name="MapImage" class="map-image" />
+                </ui:VisualElement>
+                
+                <!-- Right Side: Reserved for future content -->
+                <ui:VisualElement name="RightSection" class="right-section">
+                </ui:VisualElement>
+            </ui:VisualElement>
+            
+            <!-- Bottom Action Controls -->
+            <ui:VisualElement name="BottomControls" class="bottom-controls">
+                
+                <!-- Ready State -->
+                <ui:Button name="ReadyButton" text="LOCK IN" class="btn-ready hidden" />
+                
+                <!-- Host Action -->
+                <ui:VisualElement name="HostControls" class="host-controls hidden">
+                    <ui:Button name="StartGameButton" text="ENGAGE // START" class="btn-start-game" />
+                </ui:VisualElement>
+                
+                <ui:VisualElement name="WaitingMessage" class="hidden">
+                    <ui:Label text="WAITING FOR MISSION START..." class="waiting-label" style="letter-spacing: 3px;" />
+                </ui:VisualElement>
+                
+            </ui:VisualElement>
+            </ui:VisualElement>
+            
+            <!-- WEAPONS TAB CONTENT -->
+            <ui:VisualElement name="WeaponsContent" class="tab-content weapons-content hidden">
+                <ui:Label text="ARSENAL // WEAPON SELECTION" class="tab-title" />
+                <ui:Label text="[WEAPONS CUSTOMIZATION COMING SOON]" class="tab-subtitle" />
+            </ui:VisualElement>
+            
+            <!-- AGENTS TAB CONTENT -->
+            <ui:VisualElement name="AgentsContent" class="tab-content agents-content hidden">
+                <ui:Label text="OPERATIVES // AGENT SELECTION" class="tab-title" />
+                <ui:Label text="[AGENT CUSTOMIZATION COMING SOON]" class="tab-subtitle" />
+            </ui:VisualElement>
+            
+        </ui:VisualElement>
+        
+        <!-- Startup Countdown -->
+        <ui:VisualElement name="CountdownOverlay" class="countdown-overlay hidden" style="position: absolute; width: 100%; height: 100%; align-items: center; justify-content: center;">
+            <ui:Label name="CountdownLabel" text="3" class="countdown-label" />
+            <ui:Label text="MISSION COMMENCING" class="countdown-message" />
+        </ui:VisualElement>
+        
+    </ui:VisualElement>
+</ui:UXML>
+

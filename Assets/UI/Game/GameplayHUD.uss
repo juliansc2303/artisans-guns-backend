@@ -1,0 +1,1693 @@
+/* ===================================
+   GAMEPLAY HUD STYLES - PREMIUM DESIGN
+   Modern, Elegant, Mobile-First
+   =================================== */
+
+/* Global Font - Black Bird */
+* {
+    -unity-font-definition: url('project://database/Assets/Fonts/WhirlyBirdie-WideBold.otf?fileID=12800000&guid=3dbce92e7e9156543aa54fb9ca2c7a54&type=3#Whirly Birdie');
+}
+
+/* ROOT */
+.root {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+}
+
+/* ===================================
+   PRE-MATCH CEREMONY
+   =================================== */
+
+/* ── Top banner (warmup / waiting) ── */
+.ceremony-banner {
+    position: absolute;
+    top: 120px;
+    left: 0;
+    right: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.ceremony-banner.hidden {
+    display: none;
+}
+
+.ceremony-gamemode {
+    font-size: 13px;
+    letter-spacing: 5px;
+    color: rgba(255, 107, 61, 0.75);
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.ceremony-status {
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.6);
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.ceremony-players {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.35);
+    -unity-font-style: bold;
+}
+
+/* ── Join / Leave Notifications ── */
+.notification-label {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.85);
+    -unity-font-style: bold;
+    padding: 4px 10px;
+    margin-bottom: 3px;
+    background-color: rgba(0, 0, 0, 0.55);
+    border-radius: 4px;
+    opacity: 1;
+    transition-property: opacity;
+    transition-duration: 0.6s;
+    transition-timing-function: ease-out;
+}
+
+.notification-label.fade-out {
+    opacity: 0;
+}
+
+/* ── Center countdown (3-2-1 freeze) ── */
+.ceremony-countdown-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    /* Default: dark fallback */
+    background-color: rgb(10, 10, 14);
+}
+
+/* Team A overlay: orange-reddish background */
+.ceremony-countdown-overlay.team-a-overlay {
+    background-color: rgb(180, 60, 20);
+}
+
+/* Team B overlay: blue background */
+.ceremony-countdown-overlay.team-b-overlay {
+    background-color: rgb(20, 80, 180);
+}
+
+.ceremony-countdown-overlay.hidden {
+    display: none;
+}
+
+/* ── Overlay inner labels — all white, all thick ── */
+.ceremony-overlay-gamemode {
+    font-size: 18px;
+    letter-spacing: 6px;
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.ceremony-overlay-status {
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    margin-bottom: 20px;
+}
+
+.ceremony-countdown {
+    font-size: 140px;
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    -unity-text-outline-width: 3px;
+    -unity-text-outline-color: rgba(0, 0, 0, 0.4);
+    margin-bottom: 12px;
+}
+
+.ceremony-overlay-players {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.7);
+    -unity-font-style: bold;
+}
+
+/* ===================================
+   TOP HUD - SLEEK & MODERN
+   =================================== */
+
+.top-hud {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 25px 35px;
+    height: 110px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* SETTINGS BUTTON - TOP RIGHT */
+.settings-button {
+    position: absolute;
+    top: 50px;
+    right: 30px;
+    width: 96px;
+    height: 96px;
+    border-radius: 48px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-width: 0;
+    transition-duration: 0.2s;
+}
+
+.settings-button:hover {
+    background-color: rgba(0, 0, 0, 0.6);
+    scale: 1.1;
+}
+
+.settings-icon {
+    /* Kept for compatibility if used elsewhere, but settings-icon-large is preferred below */
+    width: 100%;
+    height: 100%;
+}
+
+/* Larger icon inside button */
+.settings-icon-large {
+    width: 60px; /* Specific size - no percentage */
+    height: 60px;
+    position: absolute;
+    left: 10px; /* Centered: (80-60)/2 */
+    top: 10px;
+    background-image: url('project://database/Assets/UI/Sprites/SettingsIcon.png?fileID=2800000&guid=2554f6f38e345454ba593f8c8f0df258&type=3#SettingsIcon');
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 1.0; 
+}
+
+/* PLAYER INFO - LEFT */
+.player-info-panel {
+    flex-direction: column;
+    min-width: 220px;
+    justify-content: center;
+}
+
+.player-name {
+    font-size: 17px;
+    color: rgba(255, 255, 255, 0.75);
+    -unity-font-style: bold;
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.health-bar-container {
+    width: 220px;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.health-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(0, 255, 136, 0.9) 0%, rgba(0, 229, 255, 0.9) 100%);
+    transition-duration: 0.3s;
+    transition-timing-function: ease-out;
+}
+
+.health-text {
+    position: absolute;
+    left: 0;
+    top: -40px;
+    font-size: 48px;
+    -unity-font-style: bold;
+    color: white;
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
+    letter-spacing: -2px;
+}
+
+/* CENTER - TIMER & PHASE */
+.center-panel {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.game-phase {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.65);
+    -unity-font-style: bold;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+}
+
+.timer {
+    font-size: 56px;
+    color: rgba(255, 255, 255, 0.95);
+    -unity-font-style: bold;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.9);
+    letter-spacing: -2px;
+}
+
+/* WEAPON PANEL - BOTTOM CENTER */
+.weapon-panel {
+    position: absolute;
+    bottom: 120px;
+    right: 40px; /* Aligned to right like typical mobile FPS */
+    left: auto;
+    translate: 0 0;
+    flex-direction: column;
+    align-items: flex-end; /* Align right */
+    min-width: 120px;
+}
+
+.weapon-slot {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(20, 20, 20, 0.7) 100%);
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin-bottom: 6px;
+    width: 140px;
+    border-right-width: 2px;
+    border-right-color: rgba(255, 255, 255, 0.2);
+}
+
+.weapon-slot.active {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 150, 255, 0.3) 100%);
+    border-right-color: #00A2FF;
+}
+
+.weapon-name {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+    margin-right: 8px;
+}
+
+.ammo-display {
+    font-size: 24px;
+    -unity-font-style: bold;
+    color: white;
+}
+
+.current-ammo {
+    font-size: 42px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
+    letter-spacing: -1px;
+}
+
+.ammo-separator {
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0 6px;
+}
+
+.max-ammo {
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.4);
+    -unity-font-style: bold;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ===================================
+   KILL FEED - ELEGANT NOTIFICATIONS
+   =================================== */
+
+.kill-feed {
+    position: absolute;
+    right: 30px;
+    top: 140px;
+    width: 360px;
+    max-height: 400px;
+    flex-direction: column-reverse;
+}
+
+.kill-entry {
+    flex-direction: row;
+    align-items: center;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.6) 100%);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    border-left-width: 3px;
+    border-left-color: rgba(255, 68, 68, 0.9);
+}
+
+.kill-entry-text {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.95);
+    letter-spacing: 0.5px;
+    flex-grow: 1;
+}
+
+/* ===================================
+   VIRTUAL JOYSTICK - PREMIUM GLASS
+   =================================== */
+
+.joystick-container {
+    position: absolute;
+    left: 50px;
+    bottom: 50px;
+    width: 160px;
+    height: 160px;
+    align-items: center;
+    justify-content: center;
+}
+
+.joystick-bg {
+    width: 160px;
+    height: 160px;
+    border-radius: 80px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.15);
+    align-items: center;
+    justify-content: center;
+}
+
+.joystick-knob {
+    width: 70px;
+    height: 70px;
+    border-radius: 35px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.2) 100%);
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.4);
+    transition-duration: 0.05s;
+}
+
+/* ===================================
+   ACTION BUTTONS - MODERN GLASS
+   =================================== */
+
+.action-buttons {
+    position: absolute;
+    right: 50px;
+    bottom: 50px;
+    flex-direction: row;
+    width: 340px;
+    height: 180px;
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+.action-button {
+    width: 75px;
+    height: 75px;
+    border-radius: 37.5px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.2);
+    align-items: center;
+    justify-content: center;
+    margin-left: 18px;
+    transition-duration: 0.15s;
+}
+
+.action-button:active {
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%);
+    border-color: rgba(255, 255, 255, 0.5);
+    scale: 0.92;
+}
+
+.shoot-btn {
+    width: 95px;
+    height: 95px;
+    border-radius: 47.5px;
+    background: radial-gradient(circle, rgba(255, 68, 68, 0.4) 0%, rgba(255, 68, 68, 0.2) 100%);
+    border-color: rgba(255, 68, 68, 0.6);
+    border-width: 3px;
+}
+
+.shoot-btn:active {
+    background: radial-gradient(circle, rgba(255, 68, 68, 0.7) 0%, rgba(255, 68, 68, 0.4) 100%);
+    border-color: rgba(255, 68, 68, 1);
+}
+
+.jump-btn {
+    align-self: flex-start;
+    margin-bottom: 12px;
+}
+
+.reload-btn {
+    align-self: center;
+    margin-bottom: 6px;
+}
+
+.button-icon {
+    font-size: 32px;
+    color: rgba(255, 255, 255, 0.85);
+    -unity-font-style: bold;
+}
+
+.shoot-icon {
+    font-size: 42px;
+}
+
+/* ===================================
+   CROSSHAIR - MINIMAL & PRECISE
+   =================================== */
+
+.crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 32px;
+    height: 32px;
+    translate: -16px -16px;
+    align-items: center;
+    justify-content: center;
+}
+
+.crosshair-line {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.crosshair-top {
+    width: 2px;
+    height: 10px;
+    top: 0;
+    left: 15px;
+}
+
+.crosshair-bottom {
+    width: 2px;
+    height: 10px;
+    bottom: 0;
+    left: 15px;
+}
+
+.crosshair-left {
+    width: 10px;
+    height: 2px;
+    left: 0;
+    top: 15px;
+}
+
+.crosshair-right {
+    width: 10px;
+    height: 2px;
+    right: 0;
+    top: 15px;
+}
+
+.crosshair-dot {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 1.5px;
+    background-color: rgba(255, 255, 255, 0.95);
+    left: 14.5px;
+    top: 14.5px;
+}
+
+/* ===================================
+   NEW CROSSHAIR SYSTEM (CrosshairManager)
+   Full-screen container, dot + X reticle + hit marker
+   =================================== */
+
+/* Full-screen overlay — ALL children must have picking-mode: ignore
+   so this transparent layer never steals clicks from game UI buttons */
+.crosshair-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    picking-mode: ignore;
+}
+
+/* ── Dot reticle (style 0, default) ──────────────────────── */
+#CrosshairDot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-width: 1px;
+    border-color: rgba(0, 0, 0, 0.8);
+    left: 50%;
+    top: 50%;
+    margin-left: -3px;
+    margin-top: -3px;
+    picking-mode: ignore;
+}
+
+/* ── X reticle anchor (style 1) — 40×40 centred box ────── */
+#ReticleX {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    left: 50%;
+    top: 50%;
+    margin-left: -20px;
+    margin-top: -20px;
+    picking-mode: ignore;
+}
+
+.reticle-x-arm {
+    position: absolute;
+    width: 2px;
+    height: 10px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-width: 1px;
+    border-color: rgba(0, 0, 0, 0.7);
+    border-radius: 1px;
+    picking-mode: ignore;
+}
+
+/* Corners of a 40×40 box, each arm rotated 45° inward */
+.reticle-x-tl { rotate: -45deg; left:  5px; top:  4px; }
+.reticle-x-tr { rotate:  45deg; left: 31px; top:  4px; }
+.reticle-x-bl { rotate:  45deg; left:  5px; top: 24px; }
+.reticle-x-br { rotate: -45deg; left: 31px; top: 24px; }
+
+/* ── Hit marker — 56×56 centred anchor ─────────────────── */
+#HitmarkerAnchor {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    left: 50%;
+    top: 50%;
+    margin-left: -28px;
+    margin-top: -28px;
+    picking-mode: ignore;
+}
+
+.hitmarker-arm {
+    position: absolute;
+    width: 2px;
+    height: 13px;
+    background-color: rgba(210, 30, 30, 1.0);
+    border-radius: 1px;
+    opacity: 0;
+    picking-mode: ignore;
+}
+
+/* Arms at the 4 corners of the 56×56 anchor */
+#HitmarkerTL { rotate: -45deg; left:  3px; top:  3px; }
+#HitmarkerTR { rotate:  45deg; left: 49px; top:  3px; }
+#HitmarkerBL { rotate:  45deg; left:  3px; top: 38px; }
+#HitmarkerBR { rotate: -45deg; left: 49px; top: 38px; }
+
+/* ===================================
+   NOTIFICATIONS - ELEGANT POPUPS
+   =================================== */
+
+.notification-area {
+    position: absolute;
+    left: 50%;
+    top: 35%;
+    width: 500px;
+    translate: -250px 0;
+    flex-direction: column;
+    align-items: center;
+}
+
+.notification {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 20, 0.85) 100%);
+    border-radius: 16px;
+    padding: 18px 40px;
+    margin-bottom: 12px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.notification-text {
+    font-size: 26px;
+    color: rgba(255, 255, 255, 0.95);
+    -unity-font-style: bold;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 1);
+    letter-spacing: 1px;
+}
+
+/* ===================================
+   PAUSE OVERLAY - ULTRA CLEAN
+   =================================== */
+
+.pause-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.92) 0%, rgba(10, 10, 10, 0.88) 100%);
+    align-items: center;
+    justify-content: center;
+}
+
+.pause-menu {
+    width: 450px;
+    background: linear-gradient(135deg, rgba(25, 25, 25, 0.98) 0%, rgba(15, 15, 15, 0.95) 100%);
+    border-radius: 24px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    padding: 50px 40px;
+    align-items: center;
+}
+
+.pause-title {
+    font-size: 56px;
+    color: white;
+    -unity-font-style: bold;
+    margin-bottom: 40px;
+    letter-spacing: 8px;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+}
+
+.pause-button {
+    width: 340px;
+    height: 64px;
+    font-size: 18px;
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, rgba(60, 60, 60, 0.5) 0%, rgba(40, 40, 40, 0.5) 100%);
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 16px;
+    transition-duration: 0.2s;
+}
+
+.pause-button:hover {
+    background: linear-gradient(135deg, rgba(90, 90, 90, 0.6) 0%, rgba(70, 70, 70, 0.6) 100%);
+    border-color: rgba(255, 255, 255, 0.3);
+    scale: 1.03;
+}
+
+.leave-btn {
+    background: linear-gradient(135deg, rgba(255, 68, 68, 0.3) 0%, rgba(220, 50, 50, 0.3) 100%);
+    border-color: rgba(255, 68, 68, 0.4);
+}
+
+.leave-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 68, 68, 0.5) 0%, rgba(220, 50, 50, 0.5) 100%);
+    border-color: rgba(255, 68, 68, 0.7);
+}
+
+/* ===================================
+   UTILITY CLASSES
+   =================================== */
+
+.hidden {
+    display: none;
+}
+
+
+/* ===================================
+   PLAYER HUD - MIDDLE BOTTOM (Appended)
+   =================================== */
+
+.player-hud-bottom {
+    position: absolute;
+    bottom: 30px;
+    width: 450px;
+    left: 50%;
+    translate: -50% 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.health-container {
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+}
+
+.health-value-text {
+    font-size: 36px; /* Reduced from 50px for subtlety */
+    -unity-font-style: bold;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6); /* Reduced shadow intensity */
+    margin-bottom: 2px; /* Adjusted spacing */
+    letter-spacing: 0px; /* Normal spacing */
+    -unity-text-outline-width: 0; /* Removed outline for cleaner look */
+}
+
+.health-bar-bg {
+    width: 100%;
+    height: 18px; /* Even thicker */
+    background-color: rgba(10, 10, 10, 0.85);
+    border-radius: 4px; /* Less rounded, more tech */
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    overflow: hidden; /* Ensure fill stays inside */
+    /* Removed skew for cleaner look */
+}
+
+.health-bar-fill-main {
+    width: 100%;
+    height: 100%;
+    /* Reverted to exact previous blue color */
+    background-color: rgb(0, 225, 255);
+    background-image: none; /* Removed gradient */
+    border-radius: 2px;
+    transition-property: width; /* Simple transition */
+    transition-duration: 0.15s;
+    transition-timing-function: ease-out-sine;
+    box-shadow: 0 0 10px rgba(0, 225, 255, 0.3); /* Keep subtle glow */
+}
+
+/* ===================================
+   DEATHMATCH SCOREBOARD — MINIMAL
+   =================================== */
+
+.scoreboard-container {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    translate: -50% 0;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgb(255, 95, 50); /* Brand accent — matches lobby */
+    height: 60px;
+    min-width: 300px;
+}
+
+/* ── Team Blocks ─────────────────── */
+.sb-team-block {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    gap: 8px;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+/* Thin bottom accent line for team color */
+.sb-team-a {
+    border-bottom-width: 3px;
+    border-bottom-color: rgba(255, 80, 40, 0.9);   /* A = orange-red */
+}
+
+.sb-team-b {
+    border-bottom-width: 3px;
+    border-bottom-color: rgba(40, 175, 255, 0.9);  /* B = blue */
+}
+
+/* Team tag letters — colored by team */
+.sb-team-a .sb-team-tag {
+    color: rgba(255, 80, 40, 0.7);
+}
+
+.sb-team-b .sb-team-tag {
+    color: rgba(40, 175, 255, 0.7);
+}
+
+/* Team score digits — subtle tint */
+#TeamAScore {
+    color: rgba(255, 120, 80, 1.0);
+}
+
+#TeamBScore {
+    color: rgba(40, 175, 255, 1.0);
+}
+
+/* Small team letter tag */
+.sb-team-tag {
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 1px;
+    -unity-text-align: middle-center;
+    margin-top: 2px; /* Optical align with number */
+}
+
+/* Score number */
+.sb-score {
+    font-size: 30px;
+    -unity-font-style: bold;
+    color: white;
+    -unity-text-align: middle-center;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Center Block (Timer + Goal) ─── */
+.sb-center {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 0 18px;
+    min-width: 110px;
+    border-left-width: 1px;
+    border-left-color: rgba(255, 255, 255, 0.06);
+    border-right-width: 1px;
+    border-right-color: rgba(255, 255, 255, 0.06);
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.sb-timer {
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.92);
+    letter-spacing: 2px;
+    -unity-text-align: middle-center;
+    margin-bottom: -2px;
+}
+
+.sb-goal {
+    font-size: 11px;
+    color: rgba(255, 210, 0, 0.7);
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+    -unity-text-align: middle-center;
+}
+
+.goal-text-styled {
+    font-size: 10px;
+    color: #FFD700;
+    -unity-font-style: bold;
+    letter-spacing: 2px;
+    opacity: 0.9;
+}
+
+/* ===================================
+   SETTINGS BUTTON IMPROVEMENTS
+   =================================== */
+
+.settings-button {
+    /* Existing base styles overridden or kept */
+    border-width: 0; /* Cleaner look */
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.settings-button:hover {
+    background-color: rgba(0, 0, 0, 0.6);
+    scale: 1.1;
+}
+
+/* Larger icon inside button */
+.settings-icon-large {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    background-image: url('project://database/Assets/UI/Sprites/SettingsIcon.png?fileID=2800000&guid=2554f6f38e345454ba593f8c8f0df258&type=3#SettingsIcon');
+    -unity-background-scale-mode: scale-to-fit;
+    opacity: 0.9;
+    padding: 2px;
+}
+
+.settings-button:hover .settings-icon-large {
+    opacity: 1.0;
+}
+
+/* ===================================
+   SCORES TAB BUTTON
+   =================================== */
+
+.scores-tab-button {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 110px;
+    height: 44px;
+    margin: 12px;
+    background-color: rgba(0, 0, 0, 0.55);
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgb(255, 95, 50);
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.scores-tab-button:hover {
+    background-color: rgba(255, 95, 50, 0.15);
+}
+
+.scores-tab-label {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.75);
+    -unity-text-align: middle-center;
+    letter-spacing: 1px;
+}
+
+.scores-tab-button:hover .scores-tab-label {
+    color: rgb(255, 95, 50);
+}
+
+/* ===================================
+   SCORES OVERLAY + PANEL
+   =================================== */
+
+.scores-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.65);
+    align-items: center;
+    justify-content: center;
+}
+
+.scores-panel {
+    width: 880px;
+    min-height: 520px;
+    background-color: rgba(8, 8, 16, 0.97);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.07);
+    border-bottom-width: 3px;
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+    padding: 0;
+    flex-direction: column;
+}
+
+/* Header */
+.scores-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 95, 50, 0.4);
+}
+
+.scores-title {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 3px;
+}
+
+.scores-close-btn {
+    width: 28px;
+    height: 28px;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 0;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    -unity-text-align: middle-center;
+    padding: 0;
+}
+
+.scores-close-btn:hover {
+    background-color: rgba(255, 95, 50, 0.3);
+    color: rgb(255, 95, 50);
+}
+
+/* Teams row */
+.scores-teams-row {
+    flex-direction: row;
+    flex-grow: 1;
+    padding: 14px 0;
+}
+
+.scores-team-col {
+    flex: 1;
+    flex-direction: column;
+    padding: 0 16px;
+}
+
+.scores-team-header-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom-width: 1px;
+}
+
+.scores-team-a-col .scores-team-header-row {
+    border-bottom-color: rgba(255, 80, 40, 0.6);   /* A = orange-red */
+}
+
+.scores-team-b-col .scores-team-header-row {
+    border-bottom-color: rgba(40, 175, 255, 0.6);  /* B = blue */
+}
+
+.scores-team-label {
+    font-size: 12px;
+    -unity-font-style: bold;
+    letter-spacing: 3px;
+}
+
+.scores-team-a-label {
+    color: rgba(255, 80, 40, 0.95);     /* A = orange-red */
+}
+
+.scores-team-b-label {
+    color: rgba(40, 175, 255, 0.95);    /* B = blue */
+}
+
+.scores-divider {
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 0 4px;
+}
+
+/* Player list */
+.scores-player-list {
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ===================================
+   PLAYER ROW (generated via C#)
+   =================================== */
+
+.scores-player-row {
+    flex-direction: row;
+    align-items: stretch;
+    height: 52px;
+    padding: 0;
+    background-color: rgba(255, 255, 255, 0.03);
+    margin-bottom: 3px;
+    overflow: hidden;
+}
+
+.scores-player-row:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* Agent portrait container — fixed 52px, clips everything outside */
+.scores-agent-icon {
+    width: 72px;
+    height: 52px;
+    border-radius: 0;
+    background-color: rgba(20, 14, 30, 1.0);
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Inner portrait — very large so only the face fills the 72×52 box.
+   Centered horizontally, shifted down so the head/face is in view. */
+.scores-agent-portrait-inner {
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    top: -33px;
+    left: -39px;
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.scores-agent-initial {
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.45);
+    -unity-text-align: middle-center;
+}
+
+.scores-player-name {
+    flex-grow: 1;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    -unity-font-style: bold;
+    overflow: hidden;
+    -unity-text-align: middle-left;
+}
+
+.scores-kd-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-right: 16px;
+}
+
+.scores-kills {
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.95);
+    width: 32px;
+    -unity-text-align: middle-right;
+}
+
+.scores-separator {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.25);
+    -unity-text-align: middle-center;
+}
+
+.scores-deaths {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.45);
+    width: 32px;
+    -unity-text-align: middle-left;
+}
+
+.scores-stat-cell {
+    width: 32px;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.7);
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+}
+
+/* Local player highlight — team-specific */
+.scores-player-row-local-a {
+    background-color: rgba(255, 95, 50, 0.09);
+    border-left-width: 3px;
+    border-left-color: rgb(255, 95, 50);
+}
+
+.scores-player-row-local-a .scores-player-name {
+    color: rgb(255, 160, 100);
+}
+
+.scores-player-row-local-b {
+    background-color: rgba(80, 140, 255, 0.09);
+    border-left-width: 3px;
+    border-left-color: rgb(80, 140, 255);
+}
+
+.scores-player-row-local-b .scores-player-name {
+    color: rgb(130, 185, 255);
+}
+
+/* Team-color left accent for non-local rows */
+.scores-row-team-a {
+    border-left-width: 2px;
+    border-left-color: rgba(255, 95, 50, 0.4);
+}
+
+.scores-row-team-b {
+    border-left-width: 2px;
+    border-left-color: rgba(80, 140, 255, 0.4);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   KILL FEED
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Container — positioned top-right, left of the settings button */
+.kill-feed-container {
+    position: absolute;
+    top: 55px;
+    right: 140px;
+    width: 370px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+}
+
+/* One kill row */
+.kill-feed-entry {
+    flex-direction: row;
+    align-items: center;
+    align-self: flex-end;
+    background-color: rgba(0, 0, 0, 0.62);
+    border-radius: 7px;
+    padding: 6px 14px 6px 10px;
+    gap: 9px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.09);
+    /* subtle inner shadow illusion via left accent */
+    border-left-width: 3px;
+    border-left-color: rgba(220, 50, 50, 0.5);
+}
+
+/* Names — flex:1 so each name takes equal share of whatever space remains
+   after the fixed-width icons, no hard pixel cap */
+.kill-feed-name {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgba(240, 240, 240, 1.0);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    -unity-text-overflow-position: end;
+    text-overflow: ellipsis;
+}
+
+/* Killer is slightly brighter / warmer */
+.kill-feed-killer {
+    color: rgba(255, 210, 140, 1.0);
+}
+
+/* Victim is cooler / dimmer */
+.kill-feed-victim {
+    color: rgba(200, 220, 255, 0.9);
+}
+
+/* Local player name — highlighted in orange */
+.kill-feed-local {
+    color: rgba(255, 110, 50, 1.0);
+}
+
+/* Weapon icon (white) */
+.kill-feed-weapon-icon {
+    width: 26px;
+    height: 26px;
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: rgba(255, 255, 255, 1.0);
+    flex-shrink: 0;
+}
+
+/* Skull / headshot icon (white) */
+.kill-feed-skull-icon {
+    width: 24px;
+    height: 24px;
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: rgba(255, 255, 255, 1.0);
+    flex-shrink: 0;
+}
+
+/* ===================================
+   CEREMONY RESULT OVERLAY (Phase 1 — big text + slow-mo)
+   =================================== */
+
+.ceremony-result-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    transition-property: background-color;
+    transition-duration: 1.2s;
+}
+
+.ceremony-result-overlay.ceremony-visible {
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+/* Radial glow behind the text */
+.ceremony-result-glow {
+    position: absolute;
+    width: 600px;
+    height: 300px;
+    border-radius: 300px;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 1.5s;
+}
+
+.ceremony-visible .ceremony-result-glow {
+    opacity: 0.35;
+}
+
+.ceremony-victory .ceremony-result-glow {
+    background-color: rgba(255, 200, 50, 0.25);
+}
+
+.ceremony-defeat .ceremony-result-glow {
+    background-color: rgba(255, 50, 40, 0.2);
+}
+
+.ceremony-draw .ceremony-result-glow {
+    background-color: rgba(180, 180, 200, 0.15);
+}
+
+/* Main result text */
+.ceremony-result-text {
+    font-size: 96px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0);
+    letter-spacing: 18px;
+    -unity-text-align: middle-center;
+    text-shadow: 0 0 60px rgba(0, 0, 0, 1);
+    transition-property: color, scale, letter-spacing;
+    transition-duration: 1s, 1.5s, 2s;
+    scale: 1.4 1.4;
+}
+
+.ceremony-visible .ceremony-result-text {
+    scale: 1 1;
+    letter-spacing: 12px;
+}
+
+/* Victory text = gold */
+.ceremony-victory .ceremony-result-text {
+    color: rgb(255, 215, 0);
+    text-shadow: 0 0 80px rgba(255, 200, 50, 0.6), 0 4px 30px rgba(0, 0, 0, 0.9);
+}
+
+/* Defeat text = red */
+.ceremony-defeat .ceremony-result-text {
+    color: rgb(255, 70, 50);
+    text-shadow: 0 0 80px rgba(255, 50, 40, 0.5), 0 4px 30px rgba(0, 0, 0, 0.9);
+}
+
+/* Draw text = silver */
+.ceremony-draw .ceremony-result-text {
+    color: rgb(200, 210, 220);
+    text-shadow: 0 0 60px rgba(180, 190, 210, 0.4), 0 4px 30px rgba(0, 0, 0, 0.9);
+}
+
+/* Subtitle (score line under the big text) */
+.ceremony-result-sub {
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0);
+    letter-spacing: 6px;
+    -unity-text-align: middle-center;
+    margin-top: 12px;
+    transition-property: color;
+    transition-duration: 1.8s;
+}
+
+.ceremony-visible .ceremony-result-sub {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ===================================
+   POST-MATCH OVERLAY
+   =================================== */
+
+.post-match-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.75);
+    align-items: center;
+    justify-content: flex-start;
+    flex-direction: column;
+    padding-top: 40px;
+}
+
+.post-match-result {
+    font-size: 56px;
+    -unity-font-style: bold;
+    color: white;
+    letter-spacing: 8px;
+    -unity-text-align: middle-center;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+    margin-bottom: 20px;
+}
+
+/* Victory = gold tint */
+.post-match-victory .post-match-result {
+    color: rgb(255, 215, 0);
+    text-shadow: 0 4px 30px rgba(255, 215, 0, 0.4);
+}
+
+/* Defeat = red tint */
+.post-match-defeat .post-match-result {
+    color: rgb(255, 70, 50);
+    text-shadow: 0 4px 30px rgba(255, 70, 50, 0.4);
+}
+
+/* Draw = white/grey */
+.post-match-draw .post-match-result {
+    color: rgba(200, 200, 200, 0.9);
+}
+
+.post-match-score-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.post-match-team-block {
+    align-items: center;
+    justify-content: center;
+    padding: 10px 28px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    min-width: 100px;
+}
+
+.post-match-team-a {
+    border-bottom-width: 3px;
+    border-bottom-color: rgba(255, 80, 40, 0.9);
+}
+
+.post-match-team-b {
+    border-bottom-width: 3px;
+    border-bottom-color: rgba(40, 175, 255, 0.9);
+}
+
+.post-match-team-label {
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 3px;
+    margin-bottom: 4px;
+}
+
+.post-match-score {
+    font-size: 36px;
+    -unity-font-style: bold;
+    color: white;
+    -unity-text-align: middle-center;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.post-match-vs {
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 4px;
+    -unity-text-align: middle-center;
+}
+
+/* ── Post-Match Scoreboard Panel ─── */
+
+.pm-scoreboard {
+    width: 1060px;
+    background-color: rgba(8, 8, 16, 0.92);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.07);
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+    padding: 0;
+}
+
+.pm-teams-row {
+    flex-direction: row;
+    flex-grow: 1;
+    padding: 8px 0;
+}
+
+.pm-team-col {
+    flex: 1;
+    flex-direction: column;
+    padding: 0 12px;
+}
+
+.pm-team-header {
+    padding: 6px 12px;
+    margin-bottom: 4px;
+    border-bottom-width: 1px;
+}
+
+.pm-team-a-col .pm-team-header {
+    border-bottom-color: rgba(255, 80, 40, 0.5);
+}
+
+.pm-team-b-col .pm-team-header {
+    border-bottom-color: rgba(40, 175, 255, 0.5);
+}
+
+.pm-team-title {
+    font-size: 11px;
+    -unity-font-style: bold;
+    letter-spacing: 3px;
+}
+
+.pm-team-a-title {
+    color: rgba(255, 80, 40, 0.95);
+}
+
+.pm-team-b-title {
+    color: rgba(40, 175, 255, 0.95);
+}
+
+.pm-col-headers {
+    flex-direction: row;
+    align-items: center;
+    padding: 2px 4px;
+    margin-bottom: 2px;
+}
+
+.pm-col-spacer {
+    flex-grow: 1;
+}
+
+.pm-col-header {
+    font-size: 10px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.4);
+    width: 40px;
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+}
+
+.pm-col-xp {
+    width: 56px;
+    color: rgba(0, 200, 240, 0.6);
+}
+
+.pm-col-coins {
+    width: 60px;
+    color: rgba(255, 210, 0, 0.6);
+}
+
+.pm-divider {
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 0 2px;
+}
+
+.pm-player-list {
+    flex-direction: column;
+    gap: 3px;
+}
+
+/* ── Player Row ─── */
+
+.pm-player-row {
+    flex-direction: row;
+    align-items: center;
+    height: 44px;
+    padding: 0 4px;
+    background-color: rgba(255, 255, 255, 0.03);
+    margin-bottom: 2px;
+    overflow: hidden;
+}
+
+.pm-player-row:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.pm-row-local-a {
+    background-color: rgba(255, 95, 50, 0.09);
+    border-left-width: 3px;
+    border-left-color: rgb(255, 95, 50);
+}
+
+.pm-row-local-b {
+    background-color: rgba(80, 140, 255, 0.09);
+    border-left-width: 3px;
+    border-left-color: rgb(80, 140, 255);
+}
+
+.pm-agent-icon {
+    width: 56px;
+    height: 40px;
+    border-radius: 0;
+    background-color: rgba(20, 14, 30, 1.0);
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.pm-agent-portrait-inner {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    top: -28px;
+    left: -32px;
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.pm-agent-initial {
+    font-size: 18px;
+    -unity-font-style: bold;
+    color: rgba(255, 255, 255, 0.45);
+    -unity-text-align: middle-center;
+}
+
+.pm-player-name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+    -unity-font-style: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+    min-width: 0;
+    -unity-text-align: middle-left;
+}
+
+.pm-row-local-a .pm-player-name {
+    color: rgb(255, 160, 100);
+}
+
+.pm-row-local-b .pm-player-name {
+    color: rgb(130, 185, 255);
+}
+
+.pm-stat {
+    width: 40px;
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.pm-kills {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-deaths {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-hs {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-streak {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.pm-xp {
+    width: 56px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(0, 200, 240);
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.pm-coins {
+    width: 60px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(255, 210, 0);
+    -unity-text-align: middle-center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+

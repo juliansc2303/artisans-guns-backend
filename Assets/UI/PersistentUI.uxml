@@ -1,0 +1,79 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" engine="UnityEngine.UIElements" editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="PersistentUI.uss" />
+    <!-- Persistent UI - Never destroyed between scenes -->
+    <!-- Header, Currency, Settings, Friends Panel stay here -->
+    
+    <ui:VisualElement name="PersistentContainer" class="persistent-container">
+        
+        <!-- ===================================
+             HEADER - Always Visible
+             =================================== -->
+        <ui:VisualElement name="Header" class="header">
+            
+            <!-- Left Side: Navigation Buttons -->
+            <ui:VisualElement name="LeftNavButtons" class="left-nav-buttons">
+                <!-- Room Button (only visible in RoomScene) -->
+                <ui:VisualElement name="RoomNavContainer" class="room-nav-container hidden">
+                    <ui:Button name="RoomButton" class="nav-button">
+                        <ui:Label text="◆" class="nav-icon" />
+                        <ui:Label text="ROOM" class="nav-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+                
+                <!-- Weapons Button -->
+                <ui:Button name="WeaponsButton" class="nav-button">
+                    <ui:Label text="⚔" class="nav-icon" />
+                    <ui:Label text="WEAPONS" class="nav-label" />
+                </ui:Button>
+                
+                <!-- Characters/Agents Button -->
+                <ui:Button name="CharactersButton" class="nav-button">
+                    <ui:Label text="◈" class="nav-icon" />
+                    <ui:Label text="AGENTS" class="nav-label" />
+                </ui:Button>
+                
+                <!-- Shop Button -->
+                <ui:Button name="ShopButton" class="nav-button">
+                    <ui:Label text="🛒" class="nav-icon" />
+                    <ui:Label text="SHOP" class="nav-label" />
+                </ui:Button>
+            </ui:VisualElement>
+            
+            <!-- Center: Logo as Lobby/Leave Button -->
+            <ui:Button name="LobbyButton" class="logo-button logo-button-active">
+                <ui:VisualElement class="logo-icon" />
+                <ui:Label name="LogoLabel" text="LOBBY" class="logo-label" />
+            </ui:Button>
+            
+            <!-- Right Side: Currency + Settings + Player Count (room only) -->
+            <ui:VisualElement class="right-header-section">
+                <!-- Currency Display -->
+                <ui:VisualElement name="RivalEssenceContainer" class="rival-essence-container">
+                    <ui:VisualElement name="RivalEssenceIcon" class="rival-essence-icon" />
+                    <ui:Label text="1,250" name="RivalEssenceLabel" class="rival-essence-label" />
+                </ui:VisualElement>
+                
+                <ui:VisualElement name="RivalPointsContainer" class="rival-points-container">
+                    <ui:VisualElement name="RivalPointsIcon" class="rival-points-icon" />
+                    <ui:Label text="5,096" name="RivalPointsLabel" class="rival-points-label" />
+                </ui:VisualElement>
+                
+                <!-- Settings Button -->
+                <ui:Button name="SettingsButton" class="settings-button">
+                    <ui:Label text="⚙" class="settings-icon" />
+                </ui:Button>
+                
+                <!-- Player Count (only visible in RoomScene) -->
+                <ui:Label name="PlayersCountLabel" text="1/10" class="players-count-header hidden" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        
+        <!-- ===================================
+             FRIENDS PANEL (Right Side) - Future
+             =================================== -->
+        <!-- <ui:VisualElement name="FriendsPanel" class="friends-panel">
+            <ui:Label text="FRIENDS // COMING SOON" class="friends-title" />
+        </ui:VisualElement> -->
+        
+    </ui:VisualElement>
+</ui:UXML>

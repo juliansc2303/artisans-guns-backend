@@ -1,0 +1,87 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <Style src="WeaponsTab.uss" />
+    
+    <!-- ROOT CONTAINER -->
+    <ui:VisualElement name="WeaponsTabRoot" class="weapons-tab-root">
+        
+        <!-- HEADER (visible in selection view) -->
+        <ui:VisualElement name="SelectionHeader" class="selection-header hidden">
+            <ui:Button name="BackButton" class="back-button">
+                <ui:Label text="◄ BACK" class="back-button-text" />
+            </ui:Button>
+            <ui:Label name="SelectionTitle" text="PRIMARY WEAPONS" class="selection-title" />
+        </ui:VisualElement>
+        
+        <!-- MAIN VIEW: Primary, Secondary & Knife Slots -->
+        <ui:VisualElement name="MainView" class="main-view">
+            <ui:Label text="ARSENAL // LOADOUT CUSTOMIZATION" class="tab-title" />
+            
+            <ui:VisualElement name="WeaponSlotsContainer" class="weapon-slots-container">
+                
+                <!-- PRIMARY WEAPON SLOT -->
+                <ui:Button name="PrimarySlotButton" class="weapon-slot-button">
+                    <ui:VisualElement name="PrimarySlotContent" class="weapon-slot-content">
+                        <ui:VisualElement name="PrimaryWeaponIcon" class="weapon-slot-icon" />
+                        <ui:Label name="PrimaryWeaponName" text="TALON-AR" class="weapon-slot-name" />
+                    </ui:VisualElement>
+                </ui:Button>
+                
+                <!-- SECONDARY WEAPON SLOT -->
+                <ui:Button name="SecondarySlotButton" class="weapon-slot-button">
+                    <ui:VisualElement name="SecondarySlotContent" class="weapon-slot-content">
+                        <ui:VisualElement name="SecondaryWeaponIcon" class="weapon-slot-icon" />
+                        <ui:Label name="SecondaryWeaponName" text="BOLT" class="weapon-slot-name" />
+                    </ui:VisualElement>
+                </ui:Button>
+                
+                <!-- KNIFE SLOT -->
+                <ui:Button name="KnifeSlotButton" class="weapon-slot-button">
+                    <ui:VisualElement name="KnifeSlotContent" class="weapon-slot-content">
+                        <ui:VisualElement name="KnifeIcon" class="weapon-slot-icon" />
+                        <ui:Label name="KnifeName" text="DEFAULT" class="weapon-slot-name" />
+                    </ui:VisualElement>
+                </ui:Button>
+                
+            </ui:VisualElement>
+        </ui:VisualElement>
+        
+        <!-- SELECTION VIEW: Grid of Weapons + Lock In Button -->
+        <ui:VisualElement name="SelectionView" class="selection-view hidden">
+            
+            <!-- Weapons Grid -->
+            <ui:ScrollView name="WeaponsGrid" class="weapons-grid">
+                <!-- Weapon cards will be added dynamically here -->
+            </ui:ScrollView>
+            
+            <!-- Lock In Button -->
+            <ui:VisualElement name="BottomControls" class="bottom-controls">
+                <ui:Button name="LockInButton" text="LOCK IN" class="lock-in-button" />
+            </ui:VisualElement>
+            
+        </ui:VisualElement>
+        
+        <!-- KNIFE SKINS VIEW: Grid of Knife Skins + Select Button -->
+        <ui:VisualElement name="KnifeSkinsView" class="knife-skins-view hidden">
+            
+            <!-- Header -->
+            <ui:VisualElement name="KnifeSkinsHeader" class="selection-header">
+                <ui:Button name="KnifeBackButton" class="back-button">
+                    <ui:Label text="◄ BACK" class="back-button-text" />
+                </ui:Button>
+                <ui:Label name="KnifeSkinsTitle" text="KNIFE SKINS" class="selection-title" />
+            </ui:VisualElement>
+            
+            <!-- Knife Skins Grid -->
+            <ui:ScrollView name="KnifeSkinsGrid" class="skins-grid">
+                <!-- Knife skin cards will be added dynamically here -->
+            </ui:ScrollView>
+            
+            <!-- Select Button -->
+            <ui:VisualElement name="BottomControls" class="bottom-controls">
+                <ui:Button name="KnifeSelectButton" text="SELECT" class="select-button" />
+            </ui:VisualElement>
+            
+        </ui:VisualElement>
+        
+    </ui:VisualElement>
+</ui:UXML>
