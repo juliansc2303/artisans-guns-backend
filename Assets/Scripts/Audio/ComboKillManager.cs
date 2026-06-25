@@ -54,6 +54,7 @@ namespace ArtisansGuns.Audio
         // ─── Private State ──────────────────────────────────────────────
         private int  _comboIndex;        // 0-5 within cycle
         private bool _ultimateActive;
+        private int  _killStreak;         // total kills without dying (shown in KillUI)
 
         // ─── Audio ──────────────────────────────────────────────────────
         private AudioSource _source;
@@ -101,14 +102,16 @@ namespace ArtisansGuns.Audio
             FlashKillWhite();
             TriggerHitpause();
 
+            _killStreak++;
+
             if (_ultimateActive)
             {
                 // While ultimate is active, every kill plays climax sound
                 PlayClip(weaponCfg.climaxSound, 1f, climaxVolume);
                 FlashKillWhite();
 
-                // Show Kill UI even during ultimate
-                ArtisansGuns.UI.KillStreakUIManager.Instance?.ShowKillUI(weaponCfg, _comboIndex);
+                // Show Kill UI with total kill streak (not capped at 5)
+                ArtisansGuns.UI.KillStreakUIManager.Instance?.ShowKillUI(weaponCfg, _killStreak);
                 return;
             }
 
@@ -130,11 +133,19 @@ namespace ArtisansGuns.Audio
                 Debug.Log("[ComboKillManager] ULTIMATE READY! 5 kills reached.");
             }
 
-            // Visual feedback on every kill
-            FlashKillWhite();
+            // Show Kill UI overlay with total kill streak
+            ArtisansGuns.UI.KillStreakUIManager.Instance?.ShowKillUI(weaponCfg, _killStreak);
+        }
 
-            // Show Kill UI overlay with streak count
-            ArtisansGuns.UI.KillStreakUIManager.Instance?.ShowKillUI(weaponCfg, _comboIndex);
+        /// <summary>
+        /// Resets only the kill-streak counter shown in KillUI.
+        /// Combo charges (dots) and ultimate state are NOT touched.
+        /// Called from RPC_Die on the victim's client.
+        /// </summary>
+        public void ResetKillStreakOnDeath()
+        {
+            _killStreak = 0;
+            Debug.Log("[ComboKillManager] Kill streak reset on death (combo charges preserved).");
         }
 
         /// <summary>
@@ -147,6 +158,9 @@ namespace ArtisansGuns.Audio
             // Only reset the ultimate-active flag if it was charged.
             _ultimateActive = false;
 
+            // Always reset the kill streak counter on death
+            _killStreak = 0;
+
             if (wasUltimate)
             {
                 _comboIndex = 0;
@@ -154,7 +168,7 @@ namespace ArtisansGuns.Audio
                 OnComboKillRegistered?.Invoke(0);
             }
 
-            Debug.Log($"[ComboKillManager] Combo reset on death. comboIndex={_comboIndex} (charges preserved)");
+            Debug.Log($"[ComboKillManager] Combo reset on death. comboIndex={_comboIndex}, killStreak=0");
         }
 
         /// <summary>
@@ -166,9 +180,10 @@ namespace ArtisansGuns.Audio
         {
             _comboIndex     = 0;
             _ultimateActive = false;
+            // Kill streak persists through ultimate throw — only reset on death
 
             OnComboKillRegistered?.Invoke(0);
-            Debug.Log("[ComboKillManager] Combo reset after throw — ready for new cycle.");
+            Debug.Log($"[ComboKillManager] Combo reset after throw — ready for new cycle. killStreak={_killStreak}");
         }
 
         /// <summary>
@@ -179,6 +194,7 @@ namespace ArtisansGuns.Audio
         {
             _comboIndex     = 0;
             _ultimateActive = false;
+            _killStreak     = 0;
 
             OnUltimateReset?.Invoke();
             OnComboKillRegistered?.Invoke(0);
@@ -293,7 +309,7 @@ namespace ArtisansGuns.Audio
 
             while (elapsed < DURATION)
             {
-                elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 float t = elapsed / DURATION;
                 _killFlashOverlay.style.opacity = Mathf.Lerp(0.65f, 0f, t * t); // ease-in
                 yield return null;
@@ -310,13 +326,16 @@ namespace ArtisansGuns.Audio
         private void TriggerHitpause()
         {
             if (_hitpauseCoroutine != null)
+            {
                 StopCoroutine(_hitpauseCoroutine);
+                Time.timeScale = 1f;  // Restore in case previous coroutine was mid-pause
+            }
             _hitpauseCoroutine = StartCoroutine(HitpauseRoutine());
         }
 
         private IEnumerator HitpauseRoutine()
         {
-            Time.timeScale = 0f;
+            Time.timeScale = 0.01f;
             yield return new WaitForSecondsRealtime(0.03f);
             Time.timeScale = 1f;
             _hitpauseCoroutine = null;

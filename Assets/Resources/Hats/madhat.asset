@@ -12,10 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d74be8798cef8b84d93cef29790b7555, type: 3}
   m_Name: madhat
   m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Data.HatDefinition
-  hatId: 
-  displayName: 
-  iconPath: 
-  hatPrefab: {fileID: 0}
-  price: 0
-  currency: 0
-  agentOffsets: []
+  hatId: mad_hat
+  displayName: MAD HAT
+  iconPath: Icons/MadHatIcon
+  hatPrefab: {fileID: 1258684066964196896, guid: 487fa114a00891a48909cc016b3aa7ac, type: 3}
+  price: 15
+  currency: 1
+  agentOffsets:
+  - agentId: crimson
+    position: {x: -0.01, y: 0.0068, z: -0.0031}
+    rotation: {x: -97.764, y: -8.208984, z: -81.866}
+    scale: {x: 31.89746, y: 24.43549, z: 22.79783}
+  - agentId: pato
+    position: {x: -0.0076, y: -0.0046, z: -0.0153}
+    rotation: {x: -105.848, y: 1.242004, z: -91.461}
+    scale: {x: 30.57236, y: 26.93179, z: 27.50119}

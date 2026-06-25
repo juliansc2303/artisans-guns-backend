@@ -37,6 +37,51 @@ namespace ArtisansGuns.Abilities
             }
         }
 
+        /// <summary>
+        /// Returns true if the line segment from→to passes through (or has an endpoint inside)
+        /// any active smoke cloud.  Used by BotBrain to block LoS through smoke.
+        /// </summary>
+        public static bool IsLineObscuredBySmoke(Vector3 from, Vector3 to)
+        {
+            for (int i = _allSmokes.Count - 1; i >= 0; i--)
+            {
+                if (_allSmokes[i] == null) { _allSmokes.RemoveAt(i); continue; }
+
+                var smoke = _allSmokes[i];
+                var col = smoke.GetComponent<SphereCollider>();
+                if (col == null) continue;
+
+                // The trigger sphere's world radius = collider.radius * uniform scale
+                // Use TransformPoint to account for any SphereCollider.center offset
+                Vector3 center = smoke.transform.TransformPoint(col.center);
+                float radius = col.radius * smoke.transform.lossyScale.x;
+
+                // If BOTH endpoints are inside the same cloud, skip it —
+                // two people sharing the same smoke can see each other.
+                // If only one is inside, the cloud still blocks LoS.
+                bool fromInside = Vector3.Distance(from, center) < radius;
+                bool toInside   = Vector3.Distance(to,   center) < radius;
+                if (fromInside && toInside) continue;
+                if (fromInside || toInside) return true;
+
+                // Check if any point of the line segment passes through the sphere.
+                // Closest-point on segment to sphere center → if dist < radius, obscured.
+                Vector3 seg = to - from;
+                float segLen = seg.magnitude;
+                if (segLen < 0.001f)
+                {
+                    if (Vector3.Distance(from, center) < radius) return true;
+                    continue;
+                }
+                Vector3 segDir = seg / segLen;
+                float t = Mathf.Clamp(Vector3.Dot(center - from, segDir), 0f, segLen);
+                Vector3 closest = from + segDir * t;
+                if (Vector3.Distance(closest, center) < radius)
+                    return true;
+            }
+            return false;
+        }
+
         // ------------------------------------------------------------------
         // Inspector
         // ------------------------------------------------------------------
@@ -110,16 +155,6 @@ namespace ArtisansGuns.Abilities
             transform.localScale = new Vector3(targetScale, targetScale, targetScale);
         }
 
-        /// <summary>
-        /// Pulses the interior smoke visibility — briefly shows full opacity,
-        /// holds, then fades back to 0.  Called by AbilitySystem for Vision Pulse.
-        /// </summary>
-        public void TriggerVisionPulse(VisionPulseAbilityConfig config)
-        {
-            if (config == null) return;
-            StartCoroutine(VisionPulseRoutine(config));
-        }
-
         // ── Trigger detection ────────────────────────────────────────────
 
         private void OnTriggerEnter(Collider other)
@@ -143,42 +178,6 @@ namespace ArtisansGuns.Abilities
             return setup != null && setup.Object != null && setup.Object.HasInputAuthority;
         }
 
-        private IEnumerator VisionPulseRoutine(VisionPulseAbilityConfig cfg)
-        {
-            if (interiorMat == null)
-            {
-                Debug.LogWarning("[CrimsonSmoke] interiorSmokeRenderer not assigned — Vision Pulse has no visual effect");
-                yield break;
-            }
 
-            int opacityId = Shader.PropertyToID(opacityPropertyName);
-
-            const float restingOpacity = 1f; // Material always rests at full opacity
-
-            // Subtle dip: 1 → pulseTargetOpacity (e.g. 0.9)
-            float elapsed = 0f;
-            while (elapsed < cfg.pulseFadeDuration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / cfg.pulseFadeDuration);
-                interiorMat.SetFloat(opacityId, Mathf.Lerp(restingOpacity, cfg.pulseTargetOpacity, t));
-                yield return null;
-            }
-            interiorMat.SetFloat(opacityId, cfg.pulseTargetOpacity);
-
-            // Hold
-            yield return new WaitForSeconds(cfg.pulseHoldDuration);
-
-            // Return: pulseTargetOpacity → 1
-            elapsed = 0f;
-            while (elapsed < cfg.pulseFadeDuration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / cfg.pulseFadeDuration);
-                interiorMat.SetFloat(opacityId, Mathf.Lerp(cfg.pulseTargetOpacity, restingOpacity, t));
-                yield return null;
-            }
-            interiorMat.SetFloat(opacityId, restingOpacity);
-        }
     }
 }

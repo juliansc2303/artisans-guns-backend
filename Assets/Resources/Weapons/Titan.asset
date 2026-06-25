@@ -1,0 +1,104 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9458b804273ce3458c656108c9b16f0, type: 3}
+  m_Name: Titan
+  m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Weapons.WeaponConfig
+  weaponId: titan
+  weaponName: Titan
+  isKnife: 0
+  isPrimary: 1
+  isSecondary: 0
+  isShotgun: 0
+  pelletCount: 9
+  shotgunSpreadAngle: 5
+  weaponClass: 0
+  whiteIcon: {fileID: 21300000, guid: 518647c6ec764e249bfdcdb9633d2bfc, type: 3}
+  killUISprite: {fileID: 21300000, guid: 04fe998573c4375498f2f5efbac5093a, type: 3}
+  weaponPrefab: {fileID: 2006291262333503464, guid: 1c95af30718a98343a1a0d7a79e6658d, type: 3}
+  fireRate: 750
+  isAutomatic: 1
+  fireSound: {fileID: 8300000, guid: 5f01a2f8c84c0534294800fa9a7de66d, type: 3}
+  muzzleFlashPrefab: {fileID: 7913120285620275701, guid: c4c862435f79512409ce8d49e85001eb, type: 3}
+  tpvMuzzleFlashPrefab: {fileID: 8318087142204508126, guid: 0c6172d543d337b4ab31d0be39ff7d10, type: 3}
+  tpvMuzzleFlashScale: 3
+  tpvTrailPrefab: {fileID: 7766135485741636679, guid: b60ae00335374e341b22834b1aa67fa8, type: 3}
+  tpvTrailSpeed: 300
+  muzzleFlashDuration: 0.15
+  reloadSounds:
+  - {fileID: 8300000, guid: 98145b47bf89b5942ad031a2defbaaa3, type: 3}
+  - {fileID: 8300000, guid: 19cf2254c5ba3f540a76f7b752c658ba, type: 3}
+  - {fileID: 8300000, guid: a169252929aed2a4f87637167416121d, type: 3}
+  emptyMagazineSound: {fileID: 8300000, guid: f74fdc90bfa58ab45bafa9797dabb693, type: 3}
+  maxAmmo: 100
+  bulletRange: 1000
+  damage: 25
+  headshotMultiplier: 3
+  speedMultiplier: 0.75
+  impactEffectPrefab: {fileID: 3006088146972272947, guid: 00fa69f605f67d24f9d49d4ee34f0a51, type: 3}
+  impactEffectDuration: 2
+  impactSound: {fileID: 8300000, guid: 3ea02950a225abb41acccb7e25bb5dba, type: 3}
+  tagImpactOverrides:
+  - tag: Water
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 7c9792fcaedd5e44f836cba67388e08b, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 3b6f64737fbada94884ea5bb7310c0b3, type: 3}
+  - tag: Environment
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 00fa69f605f67d24f9d49d4ee34f0a51, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 3ea02950a225abb41acccb7e25bb5dba, type: 3}
+  - tag: Ventilador
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 8ba4fc1a49b54e34080fb1bf96ea112b, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 3ea02950a225abb41acccb7e25bb5dba, type: 3}
+  - tag: Mwall
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 00fa69f605f67d24f9d49d4ee34f0a51, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 2d3d4eeccf3293548bdc69fd938054b3, type: 3}
+  fireSoundTPV: {fileID: 8300000, guid: 5f01a2f8c84c0534294800fa9a7de66d, type: 3}
+  recoilPattern: {fileID: 11400000, guid: 16188b754ce859d448384e7b2afa6c93, type: 2}
+  recoilKickAmount: 12
+  recoilSmoothness: 30
+  movementSpreadAngle: 1.5
+  jumpSpreadAngle: 3
+  weaponUpForce: 3
+  weaponBackForce: 3
+  weaponVerticalRoll: 6
+  weaponHorizontalRoll: 3
+  weaponRecoverySpeed: 12
+  weaponMovingMultiplier: 1.2
+  positionOffset: {x: 4.7, y: -8.4, z: 15.61}
+  rotationOffset: {x: 0, y: 0, z: 0}
+  scaleMultiplier: {x: 33, y: 33, z: 33}
+  gripSetupNote: "\u26A0\uFE0F Weapon prefab must contain:\n\u2022 RightHandGrip
+    (Transform)\n\u2022 LeftHandGrip (Transform)\n\nPosition these grips during weapon
+    reload animation.\nPlayerSetup will find them by name and connect to IK constraints."
+  handsAnimatorController: {fileID: 9100000, guid: 9a466e49e7feb794ca22e3d412a7dc0b, type: 2}
+  prefabWeaponTPV: {fileID: 5064798201654009514, guid: 267fff982d10f9949a417c489249180d, type: 3}
+  handsAnimatorControllerTPV: {fileID: 9100000, guid: 3254bb22b9943d44d9f188130d85ccc8, type: 2}
+  tpvGripSetupNote: "\u26A0\uFE0F TPV weapon prefab must contain:\n\u2022 RightGrip
+    (Transform)\n\u2022 LeftGrip (Transform, usually inside Charger object)\n\nPosition
+    these grips during weapon animations.\nPlayerSetup will find them by name and
+    connect to TPV IK constraints."
+  killSound: {fileID: 8300000, guid: c46fdefe85e166b4d8c415174ce89c3e, type: 3}
+  climaxSound: {fileID: 8300000, guid: fbdf655286c61ca4c9d27b2fe72e66d8, type: 3}
+  headBloodPrefab: {fileID: 197462128237470564, guid: 927a8adc356f08a4fa3142d2c1404f5e, type: 3}
+  bodyBloodPrefab: {fileID: 8990594275501057901, guid: 78b42a45b14ba594bb566984c6d27ebd, type: 3}
+  bloodEffectDuration: 1
+  bulletTrailMaterial: {fileID: 2100000, guid: fe2d0fb4db22a224d91c8cb146621de8, type: 2}
+  trailFlashDuration: 0.03
+  trailShrinkSpeed: 15000
+  trailWidthFar: 2
+  trailWidthNear: 0.27
+  trailWidth: 18
+  trailWidthClose: 0.025
+  trailMidDistance: 20
+  trailFarDistance: 80

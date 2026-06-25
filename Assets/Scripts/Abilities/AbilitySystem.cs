@@ -35,16 +35,26 @@ namespace ArtisansGuns.Abilities
 
         private CharacterConfig character;
         private SmokeGrenadeAbilityConfig smokeConfig;
-        private VisionPulseAbilityConfig pulseConfig;
 
         // ── Pato ability configs ──
         private TsunamiWaveAbilityConfig tsunamiConfig;
         private WaterSuperJumpAbilityConfig superJumpConfig;
         private GameObject _tsunamiPrefab; // cached for remote RPC
 
-        // Determines which ability set is active
-        private enum AbilitySet { None, Crimson, Pato }
-        private AbilitySet _activeSet = AbilitySet.None;
+        // ── Dash config ──
+        private DashAbilityConfig dashConfig;
+        private bool _isDashing;
+
+        // ── Smoke Grenade charge system ──
+        private int _smokeCharges;
+        private int _smokeMaxCharges;
+        private int _smokeSlot; // 1 or 2, set during Initialize
+        private Coroutine _smokeRechargeCoroutine;
+
+        // Per-slot ability type (supports mixed loadouts)
+        private enum AbilityType { None, SmokeGrenade, TsunamiWave, WaterSuperJump, Dash }
+        private AbilityType _ability1Type = AbilityType.None;
+        private AbilityType _ability2Type = AbilityType.None;
 
         // Cooldown flags (true while on cooldown)
         private bool ability1OnCooldown;
@@ -81,7 +91,6 @@ namespace ArtisansGuns.Abilities
 
         // Cached sound clips (loaded once in Spawned)
         private static AudioClip _smokeLandClip;
-        private static AudioClip _visionPulseClip;
 
         // Original FireButton EventTrigger entries (saved so we can restore them)
         private bool fireButtonHijacked;
@@ -102,14 +111,12 @@ namespace ArtisansGuns.Abilities
             playerSetup = GetComponent<PlayerSetup>();
 
             // Pre-load shared sound clips once
-            if (_smokeLandClip   == null) _smokeLandClip   = Resources.Load<AudioClip>("Sounds/SmokeLand");
-            if (_visionPulseClip == null) _visionPulseClip = Resources.Load<AudioClip>("Sounds/VisionPulse");
+            if (_smokeLandClip == null) _smokeLandClip = Resources.Load<AudioClip>("Sounds/SmokeLand");
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             ArtisansGuns.UI.MobileControlsController.OnAbility1 -= OnAbility1Pressed;
-            ArtisansGuns.UI.MobileControlsController.OnAbility2 -= OnAbility2Pressed;
 
             // Unsubscribe from combo events
             ComboKillManager.OnUltimateReady -= OnUltimateCharged;
@@ -131,44 +138,81 @@ namespace ArtisansGuns.Abilities
 
             character   = config;
 
-            // ── Detect ability set from config types ────────────────────
-            smokeConfig    = config?.ability1 as SmokeGrenadeAbilityConfig;
-            pulseConfig    = config?.ability2 as VisionPulseAbilityConfig;
-            tsunamiConfig  = config?.ability1 as TsunamiWaveAbilityConfig;
-            superJumpConfig = config?.ability2 as WaterSuperJumpAbilityConfig;
+            // Ability1 is fixed to the agent — read from CharacterConfig
+            AbilityConfig a1Cfg = config?.ability1;
 
-            if (tsunamiConfig != null && superJumpConfig != null)
-                _activeSet = AbilitySet.Pato;
-            else if (smokeConfig != null && pulseConfig != null)
-                _activeSet = AbilitySet.Crimson;
-            else
-                _activeSet = AbilitySet.None;
+            // Ultimate is selectable — read from loadout (PlayerNetworkData)
+            AbilityConfig ultCfg = null;
+            var netData = GetComponent<ArtisansGuns.Networking.PlayerNetworkData>();
+            string ultId = netData != null ? netData.Ultimate.ToString() : null;
+            if (!string.IsNullOrEmpty(ultId))
+                ultCfg = AbilityRegistry.Get(ultId);
+            // Fallback to CharacterConfig default if registry lookup fails
+            if (ultCfg == null)
+                ultCfg = config?.ultimate;
+
+            Debug.Log($"[AbilitySystem] Initialize — agent={config?.characterId}: ability={a1Cfg?.abilityName ?? "NULL"}, ult={ultCfg?.abilityName ?? "NULL"}");
+
+            InitializeWithConfigs(a1Cfg, null, ultCfg);
+        }
+
+        /// <summary>
+        /// Core initialization that configures abilities from resolved configs.
+        /// </summary>
+        private void InitializeWithConfigs(AbilityConfig a1Cfg, AbilityConfig a2Cfg, AbilityConfig ultCfg)
+        {
+            // ── Detect ability set from config types ────────────────────
+            smokeConfig    = a1Cfg as SmokeGrenadeAbilityConfig;
+            tsunamiConfig  = a1Cfg as TsunamiWaveAbilityConfig;
+            superJumpConfig = a2Cfg as WaterSuperJumpAbilityConfig;
+
+            // ── Dash ──
+            dashConfig = a1Cfg as DashAbilityConfig ?? a2Cfg as DashAbilityConfig;
+
+            // Also check if ability2 is actually a smoke or tsunami (swapped slots)
+            if (smokeConfig == null) smokeConfig = a2Cfg as SmokeGrenadeAbilityConfig;
+            if (tsunamiConfig == null) tsunamiConfig = a2Cfg as TsunamiWaveAbilityConfig;
+            if (superJumpConfig == null) superJumpConfig = a1Cfg as WaterSuperJumpAbilityConfig;
+
+            // Detect ability type per slot based on resolved config types
+            _ability1Type = ResolveAbilityType(a1Cfg);
+            _ability2Type = ResolveAbilityType(a2Cfg);
+
+            Debug.Log($"[AbilitySystem] Slot types: ability1={_ability1Type}, ability2={_ability2Type}");
 
             // Cache tsunami prefab for local client
             if (tsunamiConfig != null)
                 _tsunamiPrefab = tsunamiConfig.wavePrefab;
 
+            // ── Smoke Grenade charge system ──────────────────────────────
+            if (smokeConfig != null)
+            {
+                _smokeMaxCharges = smokeConfig.maxCharges;
+                _smokeCharges    = _smokeMaxCharges;
+                _smokeSlot = _ability1Type == AbilityType.SmokeGrenade ? 1 : 2;
+            }
+
             // -- Subscribe to UIToolkit mobile controls ---------------------------
             ArtisansGuns.UI.MobileControlsController.OnAbility1 += OnAbility1Pressed;
-            ArtisansGuns.UI.MobileControlsController.OnAbility2 += OnAbility2Pressed;
 
             // -- Set ability icons in HUD -----------------------------------------
             var ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
             if (ctrl != null)
             {
-                AbilityConfig a1 = (AbilityConfig)tsunamiConfig ?? smokeConfig;
-                AbilityConfig a2 = (AbilityConfig)superJumpConfig ?? pulseConfig;
-
-                if (a1?.icon != null) ctrl.SetAbility1Icon(a1.icon);
-                if (a2?.icon != null) ctrl.SetAbility2Icon(a2.icon);
+                if (a1Cfg?.icon != null) ctrl.SetAbility1Icon(a1Cfg.icon);
                 ctrl.SetAbility1Progress(1f, DIAL_READY_COLOR);
-                ctrl.SetAbility2Progress(1f, DIAL_READY_COLOR);
                 ctrl.SetAbility1Interactable(true);
-                ctrl.SetAbility2Interactable(true);
+
+                // Hide Ability2 button — agents only have 1 tactical ability now
+                ctrl.HideAbility2();
+
+                // Show initial charge bars for smoke grenade
+                if (smokeConfig != null)
+                    UpdateSmokeChargeUI(ctrl);
             }
 
             // ── Ultimate ability config ─────────────────────────────────
-            _ultimateConfig = config?.ultimate as CrimsonUltimateAbilityConfig;
+            _ultimateConfig = ultCfg as CrimsonUltimateAbilityConfig;
             if (_ultimateConfig != null)
             {
                 _ultProjectilePrefab = _ultimateConfig.ultimateProjectilePrefab;
@@ -182,7 +226,7 @@ namespace ArtisansGuns.Abilities
             }
 
             // ── Pato Ultimate ability config ─────────────────────────────
-            _patoUltConfig = config?.ultimate as PatoUltimateAbilityConfig;
+            _patoUltConfig = ultCfg as PatoUltimateAbilityConfig;
             if (_patoUltConfig != null)
             {
                 _patoUltWavePrefab = _patoUltConfig.wavePrefab;
@@ -223,6 +267,19 @@ namespace ArtisansGuns.Abilities
         }
 
         // ------------------------------------------------------------------
+        // Helpers
+        // ------------------------------------------------------------------
+
+        private static AbilityType ResolveAbilityType(AbilityConfig cfg)
+        {
+            if (cfg is SmokeGrenadeAbilityConfig)       return AbilityType.SmokeGrenade;
+            if (cfg is TsunamiWaveAbilityConfig)        return AbilityType.TsunamiWave;
+            if (cfg is WaterSuperJumpAbilityConfig)     return AbilityType.WaterSuperJump;
+            if (cfg is DashAbilityConfig)               return AbilityType.Dash;
+            return AbilityType.None;
+        }
+
+        // ------------------------------------------------------------------
         // Button handlers
         // ------------------------------------------------------------------
 
@@ -230,25 +287,29 @@ namespace ArtisansGuns.Abilities
         {
             if (ability1OnCooldown) return;
 
-            switch (_activeSet)
+            switch (_ability1Type)
             {
-                case AbilitySet.Crimson:
-                    // Grenade already in hand — don't restart the equip animation
+                case AbilityType.SmokeGrenade:
                     if (currentGrenadeAbility != null) return;
-                    if (smokeConfig == null)
-                    {
-                        Debug.LogWarning("[AbilitySystem] Ability 1 config is not a SmokeGrenadeAbilityConfig");
-                        return;
-                    }
+                    if (smokeConfig == null) { Debug.LogWarning("[AbilitySystem] smokeConfig is null"); return; }
+                    if (_smokeCharges <= 0) return;
                     ActivateSmokeGrenade(smokeConfig);
                     break;
 
-                case AbilitySet.Pato:
+                case AbilityType.TsunamiWave:
                     ActivateTsunamiWave();
                     break;
 
+                case AbilityType.WaterSuperJump:
+                    ActivateWaterSuperJump();
+                    break;
+
+                case AbilityType.Dash:
+                    ActivateDash();
+                    break;
+
                 default:
-                    Debug.LogWarning("[AbilitySystem] No ability set configured for Ability 1");
+                    Debug.LogWarning("[AbilitySystem] No ability configured for Ability 1");
                     break;
             }
         }
@@ -257,36 +318,29 @@ namespace ArtisansGuns.Abilities
         {
             if (ability2OnCooldown) return;
 
-            switch (_activeSet)
+            switch (_ability2Type)
             {
-                case AbilitySet.Crimson:
-                    if (pulseConfig == null)
-                    {
-                        Debug.LogWarning("[AbilitySystem] Ability 2 config is not a VisionPulseAbilityConfig");
-                        return;
-                    }
-
-                    var smoke = CrimsonSmoke.ActiveSmoke;
-                    if (smoke == null)
-                    {
-                        Debug.Log("[AbilitySystem] Vision Pulse: no active smoke in scene");
-                        return;
-                    }
-
-                    smoke.TriggerVisionPulse(pulseConfig);
-                    StartCooldown(2, pulseConfig.cooldownSeconds);
-
-                    // Play vision pulse sound: local player hears it + RPC so enemies hear it too
-                    PlayLocal2DSound(_visionPulseClip, 1f);
-                    RPC_PlayVisionPulseSound();
+                case AbilityType.SmokeGrenade:
+                    if (currentGrenadeAbility != null) return;
+                    if (smokeConfig == null) { Debug.LogWarning("[AbilitySystem] smokeConfig is null"); return; }
+                    if (_smokeCharges <= 0) return;
+                    ActivateSmokeGrenade(smokeConfig);
                     break;
 
-                case AbilitySet.Pato:
+                case AbilityType.TsunamiWave:
+                    ActivateTsunamiWave();
+                    break;
+
+                case AbilityType.WaterSuperJump:
                     ActivateWaterSuperJump();
                     break;
 
+                case AbilityType.Dash:
+                    ActivateDash();
+                    break;
+
                 default:
-                    Debug.LogWarning("[AbilitySystem] No ability set configured for Ability 2");
+                    Debug.LogWarning("[AbilitySystem] No ability configured for Ability 2");
                     break;
             }
         }
@@ -355,9 +409,119 @@ namespace ArtisansGuns.Abilities
             // Notify all clients to restore the correct TPV weapon
             RPC_UnequipTPVGrenade(playerSetup.WasUsingPrimaryBeforeAbility);
 
-            // Now start cooldown
-            if (smokeConfig != null)
-                StartCooldown(1, smokeConfig.cooldownSeconds);
+            // Consume a charge and update UI dots
+            ConsumeSmokeCharge();
+        }
+
+        /// <summary>Consume one smoke charge, update UI, and start recharge timer.</summary>
+        private void ConsumeSmokeCharge()
+        {
+            _smokeCharges = Mathf.Max(0, _smokeCharges - 1);
+
+            var ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
+            UpdateSmokeChargeUI(ctrl);
+
+            // If no charges left, disable the button (recharge coroutine will re-enable)
+            if (_smokeCharges <= 0 && ctrl != null)
+            {
+                if (_smokeSlot == 1) ctrl.SetAbility1Interactable(false);
+                else                 ctrl.SetAbility2Interactable(false);
+            }
+
+            // Start recharge timer if not already running
+            if (_smokeRechargeCoroutine == null && _smokeCharges < _smokeMaxCharges)
+                _smokeRechargeCoroutine = StartCoroutine(SmokeRechargeCoroutine());
+
+            Debug.Log($"[AbilitySystem] Smoke charge consumed — {_smokeCharges}/{_smokeMaxCharges} remaining");
+        }
+
+        /// <summary>Coroutine that recharges one smoke charge at a time using cooldownSeconds.</summary>
+        private IEnumerator SmokeRechargeCoroutine()
+        {
+            while (_smokeCharges < _smokeMaxCharges)
+            {
+                float seconds = smokeConfig != null ? smokeConfig.cooldownSeconds : 10f;
+                float elapsed = 0f;
+                var ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
+
+                // Animate the dial as a recharge timer
+                while (elapsed < seconds)
+                {
+                    elapsed += Time.deltaTime;
+                    float t = Mathf.Clamp01(elapsed / seconds);
+                    ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
+                    if (ctrl != null)
+                    {
+                        if (_smokeSlot == 1) ctrl.SetAbility1Progress(t, DIAL_COOLDOWN_COLOR);
+                        else                 ctrl.SetAbility2Progress(t, DIAL_COOLDOWN_COLOR);
+                    }
+                    yield return null;
+                }
+
+                // One charge restored
+                _smokeCharges = Mathf.Min(_smokeCharges + 1, _smokeMaxCharges);
+                ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
+                UpdateSmokeChargeUI(ctrl);
+
+                // Re-enable button if we just got at least 1 charge
+                if (_smokeCharges > 0 && ctrl != null)
+                {
+                    if (_smokeSlot == 1) ctrl.SetAbility1Interactable(true);
+                    else                 ctrl.SetAbility2Interactable(true);
+                }
+
+                // Set dial to ready color if fully charged
+                if (_smokeCharges >= _smokeMaxCharges && ctrl != null)
+                {
+                    if (_smokeSlot == 1) ctrl.SetAbility1Progress(1f, DIAL_READY_COLOR);
+                    else                 ctrl.SetAbility2Progress(1f, DIAL_READY_COLOR);
+                }
+
+                Debug.Log($"[AbilitySystem] Smoke charge recharged — {_smokeCharges}/{_smokeMaxCharges}");
+            }
+
+            _smokeRechargeCoroutine = null;
+        }
+
+        /// <summary>Restore all smoke charges instantly (called on kill). Cancels recharge timer.</summary>
+        private void RefillSmokeCharges()
+        {
+            if (smokeConfig == null) return;
+
+            // Stop any pending recharge
+            if (_smokeRechargeCoroutine != null)
+            {
+                StopCoroutine(_smokeRechargeCoroutine);
+                _smokeRechargeCoroutine = null;
+            }
+
+            _smokeCharges = _smokeMaxCharges;
+
+            var ctrl = ArtisansGuns.UI.MobileControlsController.Instance;
+            UpdateSmokeChargeUI(ctrl);
+
+            if (ctrl != null)
+            {
+                if (_smokeSlot == 1)
+                {
+                    ctrl.SetAbility1Progress(1f, DIAL_READY_COLOR);
+                    ctrl.SetAbility1Interactable(true);
+                }
+                else
+                {
+                    ctrl.SetAbility2Progress(1f, DIAL_READY_COLOR);
+                    ctrl.SetAbility2Interactable(true);
+                }
+            }
+
+            Debug.Log($"[AbilitySystem] Smoke charges refilled to {_smokeCharges}/{_smokeMaxCharges}");
+        }
+
+        /// <summary>Update the charge indicator bars on the smoke grenade dial.</summary>
+        private void UpdateSmokeChargeUI(ArtisansGuns.UI.MobileControlsController ctrl)
+        {
+            if (ctrl == null) return;
+            ctrl.SetAbilityChargeBars(_smokeSlot, _smokeCharges, _smokeMaxCharges);
         }
 
         // ------------------------------------------------------------------
@@ -446,21 +610,12 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string a1Id = netData.Ability1.ToString();
+            var cfg = AbilityRegistry.Get(a1Id) as SmokeGrenadeAbilityConfig;
+            if (cfg != null) return cfg.grenadeProjectilePrefab;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return null;
-
-            var smokeCfg = cfg.ability1 as SmokeGrenadeAbilityConfig;
-            return smokeCfg?.grenadeProjectilePrefab;
+            // Fallback: try via SelectedAgent → CharacterConfig
+            return LoadAbilityFromCharacterConfig<SmokeGrenadeAbilityConfig>(netData, c => c.ability1)?.grenadeProjectilePrefab;
         }
 
         /// <summary>
@@ -503,21 +658,12 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string a1Id = netData.Ability1.ToString();
+            var cfg = AbilityRegistry.Get(a1Id) as SmokeGrenadeAbilityConfig;
+            if (cfg != null) return cfg.smokePrefab;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return null;
-
-            var smokeCfg = cfg.ability1 as SmokeGrenadeAbilityConfig;
-            return smokeCfg?.smokePrefab;
+            // Fallback: try via SelectedAgent → CharacterConfig
+            return LoadAbilityFromCharacterConfig<SmokeGrenadeAbilityConfig>(netData, c => c.ability1)?.smokePrefab;
         }
 
         // ------------------------------------------------------------------
@@ -571,21 +717,13 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return (null, null);
+            string a1Id = netData.Ability1.ToString();
+            var cfg = AbilityRegistry.Get(a1Id) as SmokeGrenadeAbilityConfig;
+            if (cfg != null) return (cfg.grenadePrefabTPV, cfg.postureAnimatorControllerTPV);
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return (null, null);
-
-            string lower = agentId.ToLower();
-            var cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return (null, null);
-
-            var smokeCfg = cfg.ability1 as SmokeGrenadeAbilityConfig;
-            return (smokeCfg?.grenadePrefabTPV, smokeCfg?.postureAnimatorControllerTPV);
+            // Fallback: try via SelectedAgent → CharacterConfig
+            var fallback = LoadAbilityFromCharacterConfig<SmokeGrenadeAbilityConfig>(netData, c => c.ability1);
+            return (fallback?.grenadePrefabTPV, fallback?.postureAnimatorControllerTPV);
         }
 
         // ------------------------------------------------------------------
@@ -635,7 +773,7 @@ namespace ArtisansGuns.Abilities
             RPC_SpawnTsunamiWave(spawnPos, dir);
 
             // Start cooldown
-            StartCooldown(1, tsunamiConfig.cooldownSeconds);
+            StartCooldown(_ability1Type == AbilityType.TsunamiWave ? 1 : 2, tsunamiConfig.cooldownSeconds);
 
             // Play spawn sound locally
             if (tsunamiConfig.spawnSound != null)
@@ -708,40 +846,24 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string a1Id = netData.Ability1.ToString();
+            var cfg = AbilityRegistry.Get(a1Id) as TsunamiWaveAbilityConfig;
+            if (cfg != null) return cfg.wavePrefab;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return null;
-
-            var tCfg = cfg.ability1 as TsunamiWaveAbilityConfig;
-            return tCfg?.wavePrefab;
+            // Fallback: try via SelectedAgent → CharacterConfig
+            return LoadAbilityFromCharacterConfig<TsunamiWaveAbilityConfig>(netData, c => c.ability1)?.wavePrefab;
         }
 
         private TsunamiWaveAbilityConfig LoadTsunamiConfigFromCharacter()
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string a1Id = netData.Ability1.ToString();
+            var cfg = AbilityRegistry.Get(a1Id) as TsunamiWaveAbilityConfig;
+            if (cfg != null) return cfg;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-
-            return cfg?.ability1 as TsunamiWaveAbilityConfig;
+            // Fallback
+            return LoadAbilityFromCharacterConfig<TsunamiWaveAbilityConfig>(netData, c => c.ability1);
         }
 
         // ------------------------------------------------------------------
@@ -756,16 +878,12 @@ namespace ArtisansGuns.Abilities
         {
             if (superJumpConfig == null) return;
 
-            // Must be standing on a wave (riding)
+            // If riding a wave, dismount first
             var activeWave = TsunamiWave.ActiveRiderWave;
-            if (activeWave == null || !activeWave.IsRiding)
+            if (activeWave != null && activeWave.IsRiding)
             {
-                Debug.Log("[AbilitySystem] Water Super Jump: must be riding a Tsunami Wave");
-                return;
+                activeWave.DismountRider();
             }
-
-            // Dismount the wave
-            activeWave.DismountRider();
 
             // Apply super jump velocity to the player
             var pc = GetComponent<ArtisansGuns.Game.PlayerController>();
@@ -775,11 +893,88 @@ namespace ArtisansGuns.Abilities
             }
 
             // Start cooldown
-            StartCooldown(2, superJumpConfig.cooldownSeconds);
+            StartCooldown(_ability1Type == AbilityType.WaterSuperJump ? 1 : 2, superJumpConfig.cooldownSeconds);
 
             // Play sound
             if (superJumpConfig.jumpSound != null)
                 PlayLocal2DSound(superJumpConfig.jumpSound, 1f);
+        }
+
+        // ------------------------------------------------------------------
+        // Dash
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Activates the Dash ability.
+        /// Moves the player rapidly in the direction they're walking.
+        /// If standing still, dashes forward. Collides with walls normally.
+        /// </summary>
+        private void ActivateDash()
+        {
+            if (dashConfig == null) return;
+            if (_isDashing) return; // prevent overlapping dashes
+
+            var pc = GetComponent<ArtisansGuns.Game.PlayerController>();
+            var cc = GetComponent<CharacterController>();
+            if (pc == null || cc == null) return;
+
+            // Determine dash direction from current movement input
+            Vector2 input = pc.GetMoveInput();
+            Vector3 dashDir;
+
+            if (input.magnitude > 0.01f)
+            {
+                // Dash in the direction the player is moving (relative to facing)
+                dashDir = new Vector3(input.x, 0f, input.y);
+                dashDir = transform.TransformDirection(dashDir).normalized;
+            }
+            else
+            {
+                // Not moving — dash forward
+                dashDir = transform.forward;
+            }
+
+            // Flatten to horizontal plane
+            dashDir.y = 0f;
+            dashDir.Normalize();
+
+            // Start the dash coroutine (physics-based, respects collisions)
+            StartCoroutine(DashCoroutine(cc, dashDir));
+
+            // Start cooldown
+            StartCooldown(_ability1Type == AbilityType.Dash ? 1 : 2, dashConfig.cooldownSeconds);
+
+            // Play sound
+            if (dashConfig.dashSound != null)
+                PlayLocal2DSound(dashConfig.dashSound, dashConfig.dashSoundVolume);
+        }
+
+        /// <summary>
+        /// Smoothly moves the CharacterController over dashDuration using
+        /// CharacterController.Move, which handles wall collisions automatically.
+        /// </summary>
+        private IEnumerator DashCoroutine(CharacterController cc, Vector3 direction)
+        {
+            _isDashing = true;
+
+            float duration = Mathf.Max(dashConfig.dashDuration, 0.01f);
+            float speed = dashConfig.dashDistance / duration;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                if (!cc.enabled) break; // controller disabled (death)
+
+                float dt = Time.deltaTime;
+                elapsed += dt;
+
+                // CharacterController.Move handles collision with walls/environment
+                cc.Move(direction * speed * dt);
+
+                yield return null;
+            }
+
+            _isDashing = false;
         }
 
         // ------------------------------------------------------------------
@@ -988,40 +1183,24 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string ultId = netData.Ultimate.ToString();
+            var cfg = AbilityRegistry.Get(ultId) as PatoUltimateAbilityConfig;
+            if (cfg != null) return cfg.wavePrefab;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return null;
-
-            var ultCfg = cfg.ultimate as PatoUltimateAbilityConfig;
-            return ultCfg?.wavePrefab;
+            // Fallback
+            return LoadAbilityFromCharacterConfig<PatoUltimateAbilityConfig>(netData, c => c.ultimate)?.wavePrefab;
         }
 
         private PatoUltimateAbilityConfig LoadPatoUltimateConfigFromCharacter()
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string ultId = netData.Ultimate.ToString();
+            var cfg = AbilityRegistry.Get(ultId) as PatoUltimateAbilityConfig;
+            if (cfg != null) return cfg;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-
-            return cfg?.ultimate as PatoUltimateAbilityConfig;
+            // Fallback
+            return LoadAbilityFromCharacterConfig<PatoUltimateAbilityConfig>(netData, c => c.ultimate);
         }
 
         // ── Ultimate projectile + effect RPCs ────────────────────────────
@@ -1117,32 +1296,37 @@ namespace ArtisansGuns.Abilities
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return null;
+            string ultId = netData.Ultimate.ToString();
+            var cfg = AbilityRegistry.Get(ultId) as CrimsonUltimateAbilityConfig;
+            if (cfg != null) return type == "projectile" ? cfg.ultimateProjectilePrefab : cfg.ultimateEffectPrefab;
 
-            string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return null;
-
-            string lower = agentId.ToLower();
-            CharacterConfig cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
-            if (cfg == null)
-            {
-                string cap = char.ToUpper(lower[0]) + lower.Substring(1);
-                cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
-            }
-            if (cfg == null) return null;
-
-            var ultCfg = cfg.ultimate as CrimsonUltimateAbilityConfig;
-            if (ultCfg == null) return null;
-
-            return type == "projectile" ? ultCfg.ultimateProjectilePrefab : ultCfg.ultimateEffectPrefab;
+            // Fallback
+            var fallback = LoadAbilityFromCharacterConfig<CrimsonUltimateAbilityConfig>(netData, c => c.ultimate);
+            if (fallback == null) return null;
+            return type == "projectile" ? fallback.ultimateProjectilePrefab : fallback.ultimateEffectPrefab;
         }
 
         private (GameObject prefab, RuntimeAnimatorController animator) LoadTPVUltimateDataFromConfig()
         {
             var netData = GetComponent<PlayerNetworkData>();
             if (netData == null) return (null, null);
+            string ultId = netData.Ultimate.ToString();
+            var cfg = AbilityRegistry.Get(ultId) as CrimsonUltimateAbilityConfig;
+            if (cfg != null) return (cfg.ultimatePrefabTPV, cfg.postureAnimatorControllerTPV);
 
+            // Fallback
+            var fallback = LoadAbilityFromCharacterConfig<CrimsonUltimateAbilityConfig>(netData, c => c.ultimate);
+            return (fallback?.ultimatePrefabTPV, fallback?.postureAnimatorControllerTPV);
+        }
+
+        /// <summary>
+        /// Fallback helper: loads an ability config from CharacterConfig via SelectedAgent.
+        /// Used when networked ability fields are empty (backward compatibility).
+        /// </summary>
+        private T LoadAbilityFromCharacterConfig<T>(PlayerNetworkData netData, System.Func<CharacterConfig, AbilityConfig> selector) where T : AbilityConfig
+        {
             string agentId = netData.SelectedAgent.ToString();
-            if (string.IsNullOrEmpty(agentId)) return (null, null);
+            if (string.IsNullOrEmpty(agentId)) return null;
 
             string lower = agentId.ToLower();
             var cfg = Resources.Load<CharacterConfig>($"Characters/{lower}");
@@ -1151,10 +1335,9 @@ namespace ArtisansGuns.Abilities
                 string cap = char.ToUpper(lower[0]) + lower.Substring(1);
                 cfg = Resources.Load<CharacterConfig>($"Characters/{cap}");
             }
-            if (cfg == null) return (null, null);
+            if (cfg == null) return null;
 
-            var ultCfg = cfg.ultimate as CrimsonUltimateAbilityConfig;
-            return (ultCfg?.ultimatePrefabTPV, ultCfg?.postureAnimatorControllerTPV);
+            return selector(cfg) as T;
         }
 
         /// <summary>
@@ -1271,6 +1454,9 @@ namespace ArtisansGuns.Abilities
                     ctrl.SetAbility2Interactable(true);
                 }
             }
+
+            // Refill smoke grenade charges on kill
+            RefillSmokeCharges();
         }
 
         /// <summary>
@@ -1301,28 +1487,6 @@ namespace ArtisansGuns.Abilities
         // ------------------------------------------------------------------
         // Sound helpers
         // ------------------------------------------------------------------
-
-        /// <summary>
-        /// RPC: plays the vision pulse activation sound on all clients.
-        /// Each client decides whether to play it based on team:
-        /// enemies and local player hear it; teammates do NOT.
-        /// </summary>
-        [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
-        private void RPC_PlayVisionPulseSound()
-        {
-            // The local player already played it in OnAbility2Pressed — skip duplicate.
-            if (Object.HasInputAuthority) return;
-
-            // Determine team relationship
-            var localNetData = FindLocalPlayerNetworkData();
-            var myNetData    = GetComponent<PlayerNetworkData>();
-            if (localNetData == null || myNetData == null) return;
-
-            // Only enemies hear it (different team)
-            if (localNetData.Team == myNetData.Team) return;
-
-            PlayLocal2DSound(_visionPulseClip, 1f);
-        }
 
         /// <summary>
         /// Plays a clip as 2D (no spatialization) on a temporary AudioSource.

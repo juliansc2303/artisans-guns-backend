@@ -168,8 +168,9 @@ namespace ArtisansGuns.Game
                 _isWalkingState = nowWalking;
             }
 
-            // — Footstep ticker (runs every frame while walking) —
-            if (_isWalkingState && _nextStepTime > 0f && Time.time >= _nextStepTime)
+            // — Footstep ticker (runs every frame while walking AND grounded) —
+            bool grounded = playerController != null && playerController.IsGrounded;
+            if (_isWalkingState && grounded && _nextStepTime > 0f && Time.time >= _nextStepTime)
             {
                 PlayFootstep();
                 _nextStepTime = Time.time + STEP_INTERVAL;

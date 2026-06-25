@@ -25,6 +25,18 @@ namespace ArtisansGuns.Weapons
 
         [Tooltip("True if this weapon occupies the SECONDARY slot (e.g. Pistols)")]
         public bool isSecondary = false;
+
+        [Tooltip("True if this weapon fires multiple pellets per shot (e.g. Shotguns)")]
+        public bool isShotgun = false;
+
+        [Header("Shotgun Settings")]
+        [Tooltip("Number of pellets per shot. Total damage is divided equally among pellets.")]
+        [Range(1, 20)]
+        public int pelletCount = 9;
+
+        [Tooltip("Cone half-angle (degrees) for pellet spread.")]
+        [Range(0f, 30f)]
+        public float shotgunSpreadAngle = 5f;
         
         [Tooltip("Weapon class (AR, Pistol, Sniper, etc.)")]
         public WeaponClass weaponClass = WeaponClass.AssaultRifle;

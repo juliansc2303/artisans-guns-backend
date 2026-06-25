@@ -49,10 +49,9 @@ namespace ArtisansGuns.Managers
                 AuthManager.Instance.OnLoginSuccess += InitializeLoadoutFromAuth;
                 AuthManager.Instance.OnGuestReady += InitializeLoadoutFromAuth;
                 
-                // If auth already initialized (guest or logged in), init now
-                var user = AuthManager.Instance.GetCurrentUser();
-                if (user != null)
-                    InitializeLoadoutFromAuth(user);
+                // Do NOT eagerly init from cached user data here.
+                // Wait for OnGuestReady / OnLoginSuccess which only fire
+                // after the backend has confirmed the session.
             }
         }
 
@@ -87,7 +86,11 @@ namespace ArtisansGuns.Managers
                 xp = userData.xp,
                 sensitivity = userData.sensitivity > 0 ? userData.sensitivity : 6.0f,
                 selectedHat = userData.selectedHat ?? "none",
-                unlockedHats = userData.unlockedHats ?? new string[] { "none" }
+                unlockedHats = userData.unlockedHats ?? new string[] { "none" },
+                // Restore cached ability loadout (overridden by RefreshLoadout if backend is available)
+                ability1 = PlayerPrefs.GetString("loadout_ability1", "smoke_grenade"),
+                ability2 = PlayerPrefs.GetString("loadout_ability2", "dash"),
+                ultimate = PlayerPrefs.GetString("loadout_ultimate", "crimson_ultimate")
             };
 
             // Debug.Log($"âœ… [LoadoutManager] Loadout initialized for {userData.username}");
@@ -210,6 +213,9 @@ namespace ArtisansGuns.Managers
                 return;
             }
 
+            // Optimistic local update so GetLoadout() is immediate
+            currentLoadout.primaryWeapon = new AuthManager.WeaponData { weaponId = weaponId, skinId = skinId };
+
             StartCoroutine(UpdateLoadoutCoroutine(new LoadoutUpdateRequest
             {
                 selectedCharacter = currentLoadout?.selectedCharacter ?? "crimson",
@@ -242,6 +248,9 @@ namespace ArtisansGuns.Managers
                 callback?.Invoke(true);
                 return;
             }
+
+            // Optimistic local update so GetLoadout() is immediate
+            currentLoadout.secondaryWeapon = new AuthManager.WeaponData { weaponId = weaponId, skinId = skinId };
 
             StartCoroutine(UpdateLoadoutCoroutine(new LoadoutUpdateRequest
             {
@@ -276,6 +285,9 @@ namespace ArtisansGuns.Managers
                 return;
             }
 
+            // Optimistic local update so GetLoadout() is immediate
+            currentLoadout.knifeSkin = new AuthManager.WeaponData { weaponId = "knife", skinId = skinId };
+
             StartCoroutine(UpdateLoadoutCoroutine(new LoadoutUpdateRequest
             {
                 selectedCharacter = currentLoadout?.selectedCharacter ?? "crimson",
@@ -303,6 +315,9 @@ namespace ArtisansGuns.Managers
                 callback?.Invoke(true);
                 return;
             }
+
+            // Optimistic local update so GetLoadout() is immediate
+            currentLoadout.selectedCharacter = agentId;
 
             // Include current weapons to avoid 400 error from backend
             StartCoroutine(UpdateLoadoutCoroutine(new LoadoutUpdateRequest
@@ -388,7 +403,51 @@ namespace ArtisansGuns.Managers
                 secondaryWeapon = currentLoadout.secondaryWeapon,
                 knifeSkin = currentLoadout.knifeSkin,
                 sensitivity = currentLoadout.sensitivity,
-                selectedHat = hatId
+                selectedHat = hatId,
+                ability1 = currentLoadout.ability1,
+                ability2 = currentLoadout.ability2,
+                ultimate = currentLoadout.ultimate
+            };
+            StartCoroutine(UpdateLoadoutCoroutine(updateData, callback));
+        }
+
+        /// <summary>
+        /// Update the ability loadout (ability1, ability2, ultimate) and sync to backend.
+        /// </summary>
+        public void UpdateAbilities(string ability1Id, string ability2Id, string ultimateId, Action<bool> callback = null)
+        {
+            if (this == null) { callback?.Invoke(false); return; }
+            if (currentLoadout == null) { callback?.Invoke(false); return; }
+
+            currentLoadout.ability1 = ability1Id;
+            currentLoadout.ability2 = ability2Id;
+            currentLoadout.ultimate = ultimateId;
+            OnLoadoutUpdated?.Invoke(currentLoadout);
+
+            // Always cache to PlayerPrefs so next session starts with correct abilities
+            PlayerPrefs.SetString("loadout_ability1", ability1Id);
+            PlayerPrefs.SetString("loadout_ability2", ability2Id);
+            PlayerPrefs.SetString("loadout_ultimate", ultimateId);
+            PlayerPrefs.Save();
+
+            // Local-only fallback guest: don't call backend
+            if (IsLocalOnlyGuest)
+            {
+                callback?.Invoke(true);
+                return;
+            }
+
+            var updateData = new LoadoutUpdateRequest
+            {
+                selectedCharacter = currentLoadout.selectedCharacter,
+                primaryWeapon = currentLoadout.primaryWeapon,
+                secondaryWeapon = currentLoadout.secondaryWeapon,
+                knifeSkin = currentLoadout.knifeSkin,
+                sensitivity = currentLoadout.sensitivity,
+                selectedHat = currentLoadout.selectedHat,
+                ability1 = ability1Id,
+                ability2 = ability2Id,
+                ultimate = ultimateId
             };
             StartCoroutine(UpdateLoadoutCoroutine(updateData, callback));
         }
@@ -533,15 +592,26 @@ namespace ArtisansGuns.Managers
                         currentLoadout.xp = response.loadout.xp;
                         if (response.loadout.sensitivity > 0) currentLoadout.sensitivity = response.loadout.sensitivity;
                         currentLoadout.selectedHat = response.loadout.selectedHat ?? "none";
-                        currentLoadout.unlockedHats = response.loadout.unlockedHats ?? new string[] { "none" };
+                        currentLoadout.unlockedHats = response.loadout.unlockedHats ?? new string[] { "none" };                        if (!string.IsNullOrEmpty(response.loadout.ability1))
+                            currentLoadout.ability1 = response.loadout.ability1;
+                        if (!string.IsNullOrEmpty(response.loadout.ability2))
+                            currentLoadout.ability2 = response.loadout.ability2;
+                        if (!string.IsNullOrEmpty(response.loadout.ultimate))
+                            currentLoadout.ultimate = response.loadout.ultimate;
 
-                        // Debug.Log("âœ… [LoadoutManager] Loadout refreshed from backend");
+                        // Keep PlayerPrefs cache in sync with backend
+                        PlayerPrefs.SetString("loadout_ability1", currentLoadout.ability1);
+                        PlayerPrefs.SetString("loadout_ability2", currentLoadout.ability2);
+                        PlayerPrefs.SetString("loadout_ultimate", currentLoadout.ultimate);
+                        PlayerPrefs.Save();
+
+                        // Debug.Log("✅ [LoadoutManager] Loadout refreshed from backend");
                         OnLoadoutUpdated?.Invoke(currentLoadout);
                         callback?.Invoke(true);
                     }
                     else
                     {
-                        // Debug.LogError($"âŒ [LoadoutManager] Failed to get loadout: {response.error}");
+                        // Debug.LogError($"❌ [LoadoutManager] Failed to get loadout: {response.error}");
                         OnLoadoutError?.Invoke(response.error);
                         callback?.Invoke(false);
                     }
@@ -604,7 +674,17 @@ namespace ArtisansGuns.Managers
                         currentLoadout.selectedHat = response.loadout.selectedHat ?? currentLoadout.selectedHat;
                         if (response.loadout.unlockedHats != null)
                             currentLoadout.unlockedHats = response.loadout.unlockedHats;
-
+                        if (!string.IsNullOrEmpty(response.loadout.ability1))
+                            currentLoadout.ability1 = response.loadout.ability1;
+                        if (!string.IsNullOrEmpty(response.loadout.ability2))
+                            currentLoadout.ability2 = response.loadout.ability2;
+                        if (!string.IsNullOrEmpty(response.loadout.ultimate))
+                            currentLoadout.ultimate = response.loadout.ultimate;
+                        // Keep PlayerPrefs cache in sync with backend
+                        PlayerPrefs.SetString("loadout_ability1", currentLoadout.ability1);
+                        PlayerPrefs.SetString("loadout_ability2", currentLoadout.ability2);
+                        PlayerPrefs.SetString("loadout_ultimate", currentLoadout.ultimate);
+                        PlayerPrefs.Save();
                         // Debug.Log("âœ… [LoadoutManager] Loadout updated successfully");
                         OnLoadoutUpdated?.Invoke(currentLoadout);
                         callback?.Invoke(true);
@@ -648,6 +728,10 @@ namespace ArtisansGuns.Managers
             public float sensitivity;
             public string selectedHat;
             public string[] unlockedHats;
+            // Ability loadout
+            public string ability1 = "smoke_grenade";
+            public string ability2 = "dash";
+            public string ultimate = "crimson_ultimate";
         }
 
         [Serializable]
@@ -665,6 +749,9 @@ namespace ArtisansGuns.Managers
             public AuthManager.WeaponData knifeSkin;
             public float sensitivity;
             public string selectedHat;
+            public string ability1;
+            public string ability2;
+            public string ultimate;
         }
 
         [Serializable]
@@ -691,6 +778,9 @@ namespace ArtisansGuns.Managers
             public float sensitivity;
             public string selectedHat;
             public string[] unlockedHats;
+            public string ability1;
+            public string ability2;
+            public string ultimate;
         }
 
         #endregion

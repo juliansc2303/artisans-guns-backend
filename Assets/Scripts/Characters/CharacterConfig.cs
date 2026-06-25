@@ -38,11 +38,8 @@ namespace ArtisansGuns.Characters
         public Material[] armsMaterials;
 
         [Header("Abilities")]
-        [Tooltip("Config for the first ability (Ability1Button)")]
+        [Tooltip("Config for the agent's tactical ability")]
         public AbilityConfig ability1;
-
-        [Tooltip("Config for the second ability (Ability2Button)")]
-        public AbilityConfig ability2;
 
         [Header("Ultimate")]
         [Tooltip("Config for the ultimate ability — charged by 5 kills via ComboKillManager")]

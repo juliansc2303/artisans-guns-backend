@@ -14,6 +14,10 @@ namespace ArtisansGuns.Weapons
     [RequireComponent(typeof(AudioSource))]
     public class FireWeapon : MonoBehaviour
     {
+        // ── Static gunfire event: origin, direction, range, shooterTeam ──
+        // Bots subscribe to detect gunfire and near-miss bullets.
+        public static event System.Action<Vector3, Vector3, float, int> OnShotFired;
+
         [Header("Fire Settings")]
         private WeaponConfig weaponConfig;
         private float fireRateInterval; // Time between shots in seconds
@@ -63,12 +67,46 @@ namespace ArtisansGuns.Weapons
         
         private void Start()
         {
+            EnsureCoreReferences();
+            
+            bool isBotWeapon = playerControllerRef != null && playerControllerRef.IsBotControlled;
+
+            // Only pre-warm VFX in game scenes (not LobbyScene), and skip for bots.
+            string currentScene = SceneManager.GetActiveScene().name;
+            if (currentScene != "LobbyScene" && !isBotWeapon)
+            {
+                StartCoroutine(PreWarmMuzzleFlashVFX());
+            }
+            else
+            {
+                Debug.Log("[FireWeapon] Skipping VFX pre-warm in LobbyScene");
+            }
+        }
+
+        /// <summary>
+        /// Caches essential references (PlayerController, hitLayerMask, cameras).
+        /// Safe to call multiple times — skips if already initialized.
+        /// Called from both Start() and Initialize() to handle inactive-GO edge cases.
+        /// </summary>
+        private void EnsureCoreReferences()
+        {
+            // Already initialized — skip
+            if (playerControllerRef != null) return;
+
+            // Ensure Awake-level components are present
+            if (audioSource == null) audioSource = GetComponent<AudioSource>();
+            if (weaponRecoil == null) weaponRecoil = GetComponent<WeaponRecoil>();
+            if (weaponAnimator == null) weaponAnimator = GetComponent<Animator>();
+
+            // Cache PlayerController for TPV animation sync
+            playerControllerRef = GetComponentInParent<ArtisansGuns.Game.PlayerController>();
+            // Cache PlayerHealth for dead-guard
+            playerHealthRef = GetComponentInParent<ArtisansGuns.Game.PlayerHealth>();
+
             // Find PlayerCamera for center-screen raycasting
             GameObject cameraObj = GameObject.Find("PlayerCamera");
             if (cameraObj != null)
-            {
                 playerCamera = cameraObj.GetComponent<Camera>();
-            }
 
             // Find FPV Overlay camera (culls only layer 6 — same stack as PlayerCamera)
             foreach (Camera cam in Camera.allCameras)
@@ -79,30 +117,26 @@ namespace ArtisansGuns.Weapons
                     break;
                 }
             }
-            
-            // Cache PlayerController for TPV animation sync
-            playerControllerRef = GetComponentInParent<ArtisansGuns.Game.PlayerController>();
-            // Cache PlayerHealth for dead-guard
-            playerHealthRef = GetComponentInParent<ArtisansGuns.Game.PlayerHealth>();
 
             // Build hit layer mask: Default + Enemy + Water (wave shield)
             int enemyLayer = LayerMask.NameToLayer("Enemy");
             int waterLayer = LayerMask.NameToLayer("Water");
+            bool isBotWeapon = playerControllerRef != null && playerControllerRef.IsBotControlled;
             hitLayerMask = (1 << 0); // Default
             if (enemyLayer >= 0) hitLayerMask |= (1 << enemyLayer);
             if (waterLayer >= 0) hitLayerMask |= (1 << waterLayer);
-            
-            // Only pre-warm VFX in game scenes (not LobbyScene).
-            // LobbyScene player gets destroyed on scene change, aborting the coroutine
-            // and potentially leaking VFX state. Also avoids running expensive warmup twice.
-            string currentScene = SceneManager.GetActiveScene().name;
-            if (currentScene != "LobbyScene")
+
+            // Bots need to hit Teammate + Player layers in addition to Enemy:
+            //  - Teammate: layers are from the HOST's perspective, so a bot on the
+            //    opposite team hits targets on the "Teammate" layer.
+            //  - Player: the HOST's own body is on the "Player" layer.
+            // ApplyDamageToHit performs a team + self check to prevent friendly fire.
+            if (isBotWeapon)
             {
-                StartCoroutine(PreWarmMuzzleFlashVFX());
-            }
-            else
-            {
-                Debug.Log("[FireWeapon] Skipping VFX pre-warm in LobbyScene");
+                int teammateLayer = LayerMask.NameToLayer("Teammate");
+                if (teammateLayer >= 0) hitLayerMask |= (1 << teammateLayer);
+                int playerLayer = LayerMask.NameToLayer("Player");
+                if (playerLayer >= 0) hitLayerMask |= (1 << playerLayer);
             }
         }
         
@@ -170,6 +204,10 @@ namespace ArtisansGuns.Weapons
         public void Initialize(WeaponConfig config)
         {
             weaponConfig = config;
+
+            // Ensure essential references are cached even if Start() hasn't run yet
+            // (happens when the GO was inactive at instantiation time).
+            EnsureCoreReferences();
             
             // Reset weapon ready state (will be set to true by Animation Event)
             isWeaponReady = false;
@@ -217,30 +255,36 @@ namespace ArtisansGuns.Weapons
             // Debug.Log($"   Ammo: {currentAmmo}/{maxAmmo}, Range: {weaponConfig.bulletRange}m");
             // Debug.Log($"   Weapon animator: {(weaponAnimator != null ? "Connected" : "Missing")}");
             
-            // Subscribe to UIToolkit mobile controls events
-            if (weaponConfig.isAutomatic)
+            // Bots don't use UI events — BotBrain calls Fire/StartFiring/StopFiring/StartReload directly
+            bool isBot = playerControllerRef != null && playerControllerRef.IsBotControlled;
+            
+            if (!isBot)
             {
-                ArtisansGuns.UI.MobileControlsController.OnFireDown += StartFiring;
-                ArtisansGuns.UI.MobileControlsController.OnFireUp   += StopFiring;
+                // Subscribe to UIToolkit mobile controls events
+                if (weaponConfig.isAutomatic)
+                {
+                    ArtisansGuns.UI.MobileControlsController.OnFireDown += StartFiring;
+                    ArtisansGuns.UI.MobileControlsController.OnFireUp   += StopFiring;
+                }
+                else
+                {
+                    ArtisansGuns.UI.MobileControlsController.OnFireDown += OnFireButtonPressed;
+                }
+                ArtisansGuns.UI.MobileControlsController.OnReload += StartReload;
             }
-            else
-            {
-                ArtisansGuns.UI.MobileControlsController.OnFireDown += OnFireButtonPressed;
-            }
-            ArtisansGuns.UI.MobileControlsController.OnReload += StartReload;
             
             // Show appropriate UI based on weapon type
             if (weaponConfig.isKnife)
             {
                 // Knives are ready immediately (no equip animation)
                 isWeaponReady = true;
-                ShowKnifeUI();
+                if (!isBot) ShowKnifeUI();
             }
             else
             {
-                ShowGunUI();
+                if (!isBot) ShowGunUI();
                 // Safety: if Animation Event OnWeaponReady never fires, force ready after timeout
-                StartCoroutine(WeaponReadyFallback());
+                if (!isBot) StartCoroutine(WeaponReadyFallback());
             }
         }
         
@@ -256,6 +300,14 @@ namespace ArtisansGuns.Weapons
                 Debug.LogWarning($"[FireWeapon] OnWeaponReady animation event did NOT fire after 1.5s - forcing ready for '{weaponConfig?.weaponName}'");
                 isWeaponReady = true;
             }
+        }
+
+        /// <summary>
+        /// Force weapon to be ready immediately (used by bots that skip equip animations).
+        /// </summary>
+        public void ForceReady()
+        {
+            isWeaponReady = true;
         }
         
         /// <summary>
@@ -396,55 +448,56 @@ namespace ArtisansGuns.Weapons
             }
             
             // Play fire sound (guns only)
-            if (audioSource != null && weaponConfig.fireSound != null)
+            // Bots skip FPV fire sound — the TPV system plays a 3D spatial sound instead
+            bool isBotFiring = playerControllerRef != null && playerControllerRef.IsBotControlled;
+            if (!isBotFiring && audioSource != null && weaponConfig.fireSound != null)
             {
                 audioSource.PlayOneShot(weaponConfig.fireSound);
             }
             
             // Spawn muzzle flash at firePoint (guns only)
-            if (weaponConfig.muzzleFlashPrefab == null)
+            // Bots skip FPV muzzle flash (layer 6, invisible to everyone) — the TPV
+            // system spawns its own muzzle flash at the TPV weapon's fire point.
+            if (!isBotFiring)
             {
-                Debug.LogWarning($"[FireWeapon] No muzzleFlashPrefab on WeaponConfig '{weaponConfig.weaponName}'");
-            }
-            else if (firePoint == null)
-            {
-                Debug.LogWarning($"[FireWeapon] firePoint is null on '{gameObject.name}'");
-            }
-            else
-            {
-                GameObject muzzleFlash = Instantiate(
-                    weaponConfig.muzzleFlashPrefab,
-                    firePoint.position,
-                    firePoint.rotation,
-                    firePoint // Parent to firePoint
-                );
-                
-                // Set local properties to zero (maintain prefab's configured offset)
-                muzzleFlash.transform.localPosition = Vector3.zero;
-                muzzleFlash.transform.localRotation = Quaternion.identity;
-                muzzleFlash.transform.localScale = Vector3.one;
-                
-                // Muzzle flash must be on FPV layer (6) so FPVCamera (Overlay, mask=64) renders it.
-                // VFX Graph particles use additive blending (no depth write), so they MUST render
-                // in the SAME pass as the weapon via the Overlay camera. On Default layer the
-                // Base camera would render them first but then the Overlay weapon covers them.
-                muzzleFlash.layer = 6; // FPV layer - rendered by FPVCamera Overlay
-                foreach (Transform child in muzzleFlash.GetComponentsInChildren<Transform>(true))
-                    child.gameObject.layer = 6;
-                
-                // Explicitly play VFX Graph to ensure it renders immediately.
-                // NOTE: Do NOT call Reinit() — the VFX auto-plays via OnPlay on Awake.
-                // Reinit() cancels that auto-play and leaves alive=0 in the same frame.
-                var vfx = muzzleFlash.GetComponentInChildren<VisualEffect>();
-                if (vfx != null)
+                if (weaponConfig.muzzleFlashPrefab == null)
                 {
-                    vfx.Play();
-                    // Simulate advances the first tick so particles exist before the next frame.
-                    vfx.Simulate(Time.deltaTime > 0 ? Time.deltaTime : 0.016f);
+                    Debug.LogWarning($"[FireWeapon] No muzzleFlashPrefab on WeaponConfig '{weaponConfig.weaponName}'");
                 }
-                
-                // Auto-destroy after duration
-                Destroy(muzzleFlash, weaponConfig.muzzleFlashDuration);
+                else if (firePoint == null)
+                {
+                    Debug.LogWarning($"[FireWeapon] firePoint is null on '{gameObject.name}'");
+                }
+                else
+                {
+                    GameObject muzzleFlash = Instantiate(
+                        weaponConfig.muzzleFlashPrefab,
+                        firePoint.position,
+                        firePoint.rotation,
+                        firePoint // Parent to firePoint
+                    );
+                    
+                    // Set local properties to zero (maintain prefab's configured offset)
+                    muzzleFlash.transform.localPosition = Vector3.zero;
+                    muzzleFlash.transform.localRotation = Quaternion.identity;
+                    muzzleFlash.transform.localScale = Vector3.one;
+                    
+                    // Muzzle flash must be on FPV layer (6) so FPVCamera (Overlay, mask=64) renders it.
+                    muzzleFlash.layer = 6; // FPV layer - rendered by FPVCamera Overlay
+                    foreach (Transform child in muzzleFlash.GetComponentsInChildren<Transform>(true))
+                        child.gameObject.layer = 6;
+                    
+                    // Explicitly play VFX Graph to ensure it renders immediately.
+                    var vfx = muzzleFlash.GetComponentInChildren<VisualEffect>();
+                    if (vfx != null)
+                    {
+                        vfx.Play();
+                        vfx.Simulate(Time.deltaTime > 0 ? Time.deltaTime : 0.016f);
+                    }
+                    
+                    // Auto-destroy after duration
+                    Destroy(muzzleFlash, weaponConfig.muzzleFlashDuration);
+                }
             }
             
             // Apply recoil
@@ -453,9 +506,29 @@ namespace ArtisansGuns.Weapons
                 weaponRecoil.ApplyRecoil();
             }
             
+            // Log bot fire for diagnostics
+            if (isBotFiring)
+                Debug.LogWarning($"[BOT-FIRE] Bot fired! ammo={currentAmmo}/{maxAmmo} ready={isWeaponReady} firePoint={(firePoint != null ? firePoint.position.ToString() : "NULL")}");
+
             // TODO: Spawn bullet/projectile or raycast hit detection
             // NotifyTPVShot is called inside PerformRaycastShot once the impact point is known
             PerformRaycastShot();
+
+            // Broadcast gunfire event so bots can hear/detect near-misses
+            {
+                Vector3 shotOrigin = firePoint != null ? firePoint.position : transform.position;
+                Vector3 shotDir;
+                if (isBotFiring)
+                    shotDir = Quaternion.Euler(playerControllerRef.CurrentPitch, playerControllerRef.CurrentYaw, 0f) * Vector3.forward;
+                else if (playerCamera != null)
+                    shotDir = playerCamera.transform.forward;
+                else
+                    shotDir = (firePoint != null ? firePoint.forward : transform.forward);
+                int shooterTeam = -1;
+                var nd = playerControllerRef?.GetComponent<ArtisansGuns.Networking.PlayerNetworkData>();
+                if (nd != null) shooterTeam = nd.Team;
+                OnShotFired?.Invoke(shotOrigin, shotDir, weaponConfig.bulletRange, shooterTeam);
+            }
         }
 
         /// <summary>
@@ -504,6 +577,13 @@ namespace ArtisansGuns.Weapons
         {
             if (firePoint == null) return;
             
+            // Shotgun: fire multiple pellets, each with independent spread & hit detection
+            if (weaponConfig.isShotgun && weaponConfig.pelletCount > 1)
+            {
+                PerformShotgunShot();
+                return;
+            }
+            
             RaycastHit hit;
             float range = weaponConfig.bulletRange;
             
@@ -512,7 +592,13 @@ namespace ArtisansGuns.Weapons
             Vector3 rayDirection;
             
             // Raycast from camera center (center screen) for player accuracy
-            if (playerCamera != null)
+            if (playerControllerRef != null && playerControllerRef.IsBotControlled)
+            {
+                // Bot: aim from eye height using controller's yaw/pitch
+                rayOrigin = playerControllerRef.transform.position + Vector3.up * 1.5f;
+                rayDirection = Quaternion.Euler(playerControllerRef.CurrentPitch, playerControllerRef.CurrentYaw, 0f) * Vector3.forward;
+            }
+            else if (playerCamera != null)
             {
                 rayOrigin = playerCamera.transform.position;
                 rayDirection = playerCamera.transform.forward;
@@ -562,6 +648,131 @@ namespace ArtisansGuns.Weapons
             // Notify TPV with the known impact point (after raycast so endPoint is set)
             if (playerControllerRef != null)
                 playerControllerRef.NotifyTPVShot(endPoint);
+        }
+
+        /// <summary>
+        /// Fires multiple pellets in a cone. Aggregates total damage per victim
+        /// so only ONE DealDamage call (= one RPC) is sent per enemy hit,
+        /// eliminating the delay caused by 9 individual RPCs.
+        /// Each pellet still checks headshot independently.
+        /// </summary>
+        private void PerformShotgunShot()
+        {
+            float range = weaponConfig.bulletRange;
+            int pellets = weaponConfig.pelletCount;
+            float damagePerPellet = weaponConfig.damage / pellets;
+            float spreadAngle = weaponConfig.shotgunSpreadAngle;
+
+            Vector3 rayOrigin;
+            Vector3 baseDirection;
+
+            if (playerControllerRef != null && playerControllerRef.IsBotControlled)
+            {
+                rayOrigin = playerControllerRef.transform.position + Vector3.up * 1.5f;
+                baseDirection = Quaternion.Euler(playerControllerRef.CurrentPitch, playerControllerRef.CurrentYaw, 0f) * Vector3.forward;
+            }
+            else if (playerCamera != null)
+            {
+                rayOrigin = playerCamera.transform.position;
+                baseDirection = playerCamera.transform.forward;
+            }
+            else
+            {
+                rayOrigin = firePoint.position;
+                baseDirection = firePoint.forward;
+            }
+
+            // Apply movement/airborne spread to the base direction first
+            baseDirection = ApplyBulletSpread(baseDirection);
+
+            Vector3 lastEndPoint = rayOrigin + baseDirection * range;
+            int enemyLayer = LayerMask.NameToLayer("Enemy");
+
+            // Aggregate damage per victim: (totalDamage, anyHeadshot, lastHitPoint)
+            var victimDamage = new System.Collections.Generic.Dictionary<PlayerHealth, (float total, bool headshot, Vector3 hitPoint)>();
+
+            for (int i = 0; i < pellets; i++)
+            {
+                // Random direction within shotgun cone
+                float halfRad = spreadAngle * 0.5f * Mathf.Deg2Rad;
+                Vector2 rnd = Random.insideUnitCircle * Mathf.Tan(halfRad);
+                Quaternion rot = Quaternion.LookRotation(baseDirection);
+                Vector3 pelletDir = (rot * new Vector3(rnd.x, rnd.y, 1f)).normalized;
+
+                Vector3 endPoint;
+
+                if (Physics.Raycast(rayOrigin, pelletDir, out RaycastHit hit, range, hitLayerMask))
+                {
+                    endPoint = hit.point;
+
+                    bool hitEnemy = enemyLayer >= 0 && hit.collider.gameObject.layer == enemyLayer;
+
+                    // Impact effect on non-enemy surfaces
+                    if (!hitEnemy && playerControllerRef != null)
+                        playerControllerRef.RPC_SpawnBulletImpact(hit.point, hit.normal, hit.collider.tag);
+
+                    // Accumulate damage for enemy victims
+                    if (hitEnemy)
+                    {
+                        PlayerHealth vh = hit.collider.GetComponentInParent<PlayerHealth>();
+                        if (vh != null && !vh.IsDead && !vh.PredictedDead && !vh.IsImmune)
+                        {
+                            bool isHeadshot = hit.collider.CompareTag("Head");
+                            float pelletFinal = isHeadshot ? damagePerPellet * weaponConfig.headshotMultiplier : damagePerPellet;
+
+                            if (victimDamage.TryGetValue(vh, out var existing))
+                                victimDamage[vh] = (existing.total + pelletFinal, existing.headshot || isHeadshot, hit.point);
+                            else
+                                victimDamage[vh] = (pelletFinal, isHeadshot, hit.point);
+
+                            // Per-pellet blood + hitmarker for immediate feedback
+                            if (playerControllerRef != null)
+                            {
+                                PlayerRef victimRef = vh.Object.InputAuthority;
+                                playerControllerRef.RPC_SpawnBloodEffect(hit.point, isHeadshot, victimRef);
+                            }
+                            // Hitmarker only for local player weapons (not bots)
+                            if (playerControllerRef == null || !playerControllerRef.IsBotControlled)
+                                ArtisansGuns.UI.CrosshairManager.Instance?.ShowHitMarker(isHeadshot);
+                        }
+                    }
+
+                    Debug.DrawLine(rayOrigin, hit.point, Color.red, 0.5f);
+                }
+                else
+                {
+                    endPoint = rayOrigin + pelletDir * range;
+                    Debug.DrawRay(rayOrigin, pelletDir * range, Color.yellow, 0.5f);
+                }
+
+                SpawnBulletTrail(endPoint);
+                lastEndPoint = endPoint;
+            }
+
+            // Apply aggregated damage — one DealDamage (one RPC) per victim
+            PlayerRef shooterRef = default;
+            Fusion.NetworkObject botObj = null;
+            if (playerControllerRef != null && playerControllerRef.Object != null)
+            {
+                shooterRef = playerControllerRef.Object.InputAuthority;
+                if (playerControllerRef.IsBotControlled)
+                    botObj = playerControllerRef.Object;
+            }
+
+            foreach (var kvp in victimDamage)
+            {
+                PlayerHealth victim = kvp.Key;
+                float totalDamage = kvp.Value.total;
+                bool anyHeadshot = kvp.Value.headshot;
+
+                // Pass totalDamage as raw damage with headshotMultiplier=1 since
+                // we already computed per-pellet headshot multipliers above.
+                PlayerHealth.DealDamage(victim, totalDamage, anyHeadshot, 1f, shooterRef, weaponConfig.weaponId, botObj);
+            }
+
+            // Notify TPV with the last pellet's end point
+            if (playerControllerRef != null)
+                playerControllerRef.NotifyTPVShot(lastEndPoint);
         }
         
         /// <summary>
@@ -637,15 +848,21 @@ namespace ArtisansGuns.Weapons
                 weaponRecoil.ResetPattern();
             }
             
-            // Trigger weapon animator (Reload trigger)
-            if (weaponAnimator != null)
+            // Bots skip the FPV animator (no AnimatorController assigned) and
+            // complete reload after the configured duration via Invoke.
+            bool isBotReload = playerControllerRef != null && playerControllerRef.IsBotControlled;
+            if (isBotReload)
             {
-                weaponAnimator.SetTrigger("Reload");
-                // Debug.Log($"[FireWeapon] Reload animation triggered - waiting for Animation Event");
+                float reloadSec = 2.5f;
+                Invoke(nameof(OnReloadComplete), reloadSec);
             }
             else
             {
-                // Debug.LogWarning("[FireWeapon] Weapon animator not found!");
+                // Trigger weapon animator (Reload trigger)
+                if (weaponAnimator != null)
+                {
+                    weaponAnimator.SetTrigger("Reload");
+                }
             }
             
             // Notify TPV weapon animation (syncs ReloadTPV trigger to remote players)
@@ -754,12 +971,37 @@ namespace ArtisansGuns.Weapons
         /// </summary>
         private void ApplyDamageToHit(RaycastHit hit)
         {
-            // Only process colliders on the Enemy layer
-            int enemyLayer = LayerMask.NameToLayer("Enemy");
-            if (enemyLayer >= 0 && hit.collider.gameObject.layer != enemyLayer) return;
-            
-            // Walk up the hierarchy to find PlayerHealth
+            // Only process colliders on player-character layers.
+            // Human weapons hit Enemy only.  Bot weapons also hit Teammate + Player
+            // because layers are assigned from the HOST's viewpoint.
+            int enemyLayer    = LayerMask.NameToLayer("Enemy");
+            int teammateLayer = LayerMask.NameToLayer("Teammate");
+            int playerLayer   = LayerMask.NameToLayer("Player");
+            int hitLayer      = hit.collider.gameObject.layer;
+
+            bool isEnemyLayer    = enemyLayer >= 0 && hitLayer == enemyLayer;
+            bool isTeammateLayer = teammateLayer >= 0 && hitLayer == teammateLayer;
+            bool isPlayerLayer   = playerLayer >= 0 && hitLayer == playerLayer;
+            if (!isEnemyLayer && !isTeammateLayer && !isPlayerLayer) return;
+
+            // ── Self-damage guard: never let a shooter damage itself ────
             PlayerHealth victimHealth = hit.collider.GetComponentInParent<PlayerHealth>();
+            if (victimHealth != null && victimHealth == playerHealthRef) return;
+
+            // For bots hitting Teammate or Player layer: verify the target is
+            // on a DIFFERENT team (layers are from the host's perspective).
+            if (isTeammateLayer || isPlayerLayer)
+            {
+                bool isBotShooter = playerControllerRef != null && playerControllerRef.IsBotControlled;
+                if (!isBotShooter) return; // human weapons should never damage teammates
+
+                var shooterData = playerControllerRef.GetComponent<ArtisansGuns.Networking.PlayerNetworkData>();
+                var victimData  = hit.collider.GetComponentInParent<ArtisansGuns.Networking.PlayerNetworkData>();
+                if (shooterData != null && victimData != null && shooterData.Team == victimData.Team)
+                    return; // same team — no friendly fire
+            }
+            
+            // Validate victim (reuse early lookup)
             if (victimHealth == null) return;
             if (victimHealth.IsDead || victimHealth.PredictedDead) return;
             if (victimHealth.IsImmune) return;   // immune players: no damage, no blood, no prediction
@@ -769,8 +1011,14 @@ namespace ArtisansGuns.Weapons
             
             // Get local player ref for kill credit
             PlayerRef shooterRef = default;
+            Fusion.NetworkObject botShooterObj = null;
             if (playerControllerRef != null && playerControllerRef.Object != null)
+            {
                 shooterRef = playerControllerRef.Object.InputAuthority;
+                // For bots, InputAuthority is None — pass the actual NetworkObject for kill credit
+                if (playerControllerRef.IsBotControlled)
+                    botShooterObj = playerControllerRef.Object;
+            }
             
             // Deal damage through PlayerHealth static API
             PlayerHealth.DealDamage(
@@ -779,7 +1027,8 @@ namespace ArtisansGuns.Weapons
                 isHeadshot,
                 weaponConfig.headshotMultiplier,
                 shooterRef,
-                weaponConfig.weaponId
+                weaponConfig.weaponId,
+                botShooterObj
             );
 
             // Spawn synchronized blood effect on the victim's TPV (invisible to victim)
@@ -790,8 +1039,9 @@ namespace ArtisansGuns.Weapons
                 playerControllerRef.RPC_SpawnBloodEffect(hit.point, isHeadshot, victimRef);
             }
 
-            // Hit-marker feedback (local shooter only)
-            ArtisansGuns.UI.CrosshairManager.Instance?.ShowHitMarker(isHeadshot);
+            // Hit-marker feedback (local shooter only — bots must NOT trigger the local player's hitmarker)
+            if (playerControllerRef == null || !playerControllerRef.IsBotControlled)
+                ArtisansGuns.UI.CrosshairManager.Instance?.ShowHitMarker(isHeadshot);
 
             Debug.Log($"[FireWeapon] Hit {hit.collider.name} (headshot={isHeadshot}) for {weaponConfig.damage}{(isHeadshot ? " x" + weaponConfig.headshotMultiplier : "")} damage");
         }
@@ -804,6 +1054,7 @@ namespace ArtisansGuns.Weapons
             if (isReloading)
             {
                 isReloading = false;
+                CancelInvoke(nameof(OnReloadComplete));
                 // Debug.Log($"[FireWeapon] Reload cancelled");
             }
         }
@@ -935,6 +1186,9 @@ namespace ArtisansGuns.Weapons
         /// </summary>
         private void NotifyAmmoChanged()
         {
+            // Bots must NOT update the local player's ammo UI
+            if (playerControllerRef != null && playerControllerRef.IsBotControlled) return;
+
             // Update weapon cells UI in PlayerSetup (handles both primary + secondary correctly
             // based on PlayerSetup's own state, unlike GameUIManager which has stale tracking)
             var playerSetup = GetComponentInParent<ArtisansGuns.Game.PlayerSetup>();
@@ -952,7 +1206,11 @@ namespace ArtisansGuns.Weapons
         private void SpawnBulletTrail(Vector3 targetPosition)
         {
             if (firePoint == null)        { Debug.LogWarning("[Trail] BLOCKED: firePoint is null"); return; }
-            if (playerCamera == null)     { Debug.LogWarning("[Trail] BLOCKED: playerCamera is null"); return; }
+            // Bots skip FPV trail entirely — TPV system handles their visual trail.
+            // NOTE: playerCamera != null even for bots because EnsureCoreReferences uses
+            // GameObject.Find("PlayerCamera") which finds the local player's camera.
+            if (playerControllerRef != null && playerControllerRef.IsBotControlled) return;
+            if (playerCamera == null)     return;
             if (weaponConfig == null)     { Debug.LogWarning("[Trail] BLOCKED: weaponConfig is null"); return; }
             if (weaponConfig.bulletTrailMaterial == null) { Debug.LogWarning("[Trail] BLOCKED: bulletTrailMaterial is null on " + weaponConfig.name); return; }
 

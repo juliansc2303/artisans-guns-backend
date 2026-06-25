@@ -118,7 +118,7 @@
 
     <!-- ── Fire button (large, left side above joystick) ─────────────────── -->
     <ui:VisualElement name="FireButton"
-        style="position: absolute; left: 20px; bottom: 55%;
+        style="position: absolute; left: 80px; bottom: 55%;
                width: 150px; height: 150px; border-radius: 75px;
                background-color: rgba(195,75,0,0.68);
                border-color: rgba(255,145,45,0.88); border-width: 3px;

@@ -54,12 +54,17 @@
                     
                     <ui:Button name="CharactersButton" class="side-nav-btn">
                         <ui:VisualElement class="side-nav-btn-icon agents-icon" />
-                        <ui:Label text="AGENTS" class="side-nav-btn-label" />
+                        <ui:Label text="AGENTES" class="side-nav-btn-label" />
                     </ui:Button>
                     
                     <ui:Button name="ShopButton" class="side-nav-btn">
                         <ui:VisualElement class="side-nav-btn-icon shop-icon" />
                         <ui:Label text="SHOP" class="side-nav-btn-label" />
+                    </ui:Button>
+                    
+                    <ui:Button name="AbilitiesButton" class="side-nav-btn">
+                        <ui:VisualElement class="side-nav-btn-icon abilities-icon" />
+                        <ui:Label text="ABILITIES" class="side-nav-btn-label" />
                     </ui:Button>
                     
                     <ui:Button name="HatsButton" class="side-nav-btn">
@@ -77,71 +82,74 @@
             <ui:VisualElement name="LobbyContent" class="tab-content lobby-content">
                 <ui:VisualElement name="ContentArea" class="content-area">
                     
+                    <!-- 3D Character Preview (behind all UI, renders first) -->
+                    <ui:VisualElement name="CharacterPanel" class="character-preview-frame">
+                        <!-- CardBase is the clipping container for the 3D render -->
+                        <ui:VisualElement name="CardBaseFrame" class="card-base-frame">
+                            <ui:VisualElement name="CharacterPreview" class="character-preview-render" />
+                        </ui:VisualElement>
+                        <!-- CardUp name banner — rendered AFTER CardBase so it appears on top -->
+                        <ui:VisualElement name="CardUpBanner" class="card-up-banner">
+                            <ui:Label name="CardAgentName" text="CRIMSON" class="card-agent-name" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
                     <!-- CENTER COLUMN: Character Card + Buttons -->
                     <ui:VisualElement class="center-column">
                         
-                        <!-- Player Name -->
-                        <ui:Label name="PlayerNameLabel" text="" class="player-name-top" />
-                        
-                        <!-- Level + XP Section -->
-                        <ui:VisualElement class="level-xp-section">
-                            <ui:VisualElement class="xp-bar-container">
-                                <ui:VisualElement class="xp-bar-bg">
-                                    <ui:VisualElement name="XPBarFill" class="xp-bar-fill" />
-                                </ui:VisualElement>
-                                <ui:Label name="XPLabel" text="0/100 XP" class="xp-label" />
-                            </ui:VisualElement>
-                            <ui:VisualElement class="level-badge">
-                                <ui:Label name="LevelLabel" text="1" class="level-badge-number" />
-                            </ui:VisualElement>
-                            <ui:VisualElement class="xp-diamond-icon" />
-                        </ui:VisualElement>
-                        
-                        <!-- Agent Card -->
-                        <ui:VisualElement name="CharacterPanel" class="agent-card-frame">
+                        <!-- TOP GROUP: Name + XP -->
+                        <ui:VisualElement class="center-top-group">
+                            <!-- Player Name -->
+                            <ui:Label name="PlayerNameLabel" text="" class="player-name-top" />
                             
-                            <!-- CardBase.png: marco principal -->
-                            <ui:VisualElement class="card-icon-area">
-                                <!-- Icono del personaje (debajo de CardUp) -->
-                                <ui:VisualElement name="CharacterPreview" class="card-agent-icon" />
-                                <!-- CardUp.png: banner del nombre (encima del icono) -->
-                                <ui:VisualElement class="card-name-header">
-                                    <ui:Label name="CharacterNameLabel" text="CRIMSON" class="card-agent-name" />
+                            <!-- Level + XP Section -->
+                            <ui:VisualElement class="level-xp-section">
+                                <ui:VisualElement class="xp-bar-container">
+                                    <ui:VisualElement class="xp-bar-bg">
+                                        <ui:VisualElement name="XPBarFill" class="xp-bar-fill" />
+                                    </ui:VisualElement>
+                                    <ui:Label name="XPLabel" text="0/100 XP" class="xp-label" />
                                 </ui:VisualElement>
+                                <ui:VisualElement class="level-badge">
+                                    <ui:Label name="LevelLabel" text="1" class="level-badge-number" />
+                                </ui:VisualElement>
+                                <ui:VisualElement class="xp-diamond-icon" />
                             </ui:VisualElement>
-                            
-                            <ui:Label name="PlayerIdentLabel" text="" class="card-ident-label hidden" />
                         </ui:VisualElement>
                         
-                        <!-- Gamemode selector -->
-                        <ui:VisualElement name="GamemodeSelector" class="gamemode-selector">
-                            <ui:Button name="GamemodePrevButton" class="gamemode-arrow-btn">
-                                <ui:Label text="&lt;" class="gamemode-arrow" />
-                            </ui:Button>
-                            <ui:Label text="TEAM DEATHMATCH" name="GamemodeLabel" class="gamemode-label" />
-                            <ui:Button name="GamemodeNextButton" class="gamemode-arrow-btn">
-                                <ui:Label text="&gt;" class="gamemode-arrow" />
-                            </ui:Button>
-                        </ui:VisualElement>
+                        <!-- BOTTOM GROUP: Gamemode + Buttons -->
+                        <ui:VisualElement class="center-bottom-group">
+                            <!-- Gamemode selector -->
+                            <ui:VisualElement name="GamemodeSelector" class="gamemode-selector">
+                                <ui:Button name="GamemodePrevButton" class="gamemode-arrow-btn">
+                                    <ui:Label text="◀" class="gamemode-arrow" />
+                                </ui:Button>
+                                <ui:Label text="TEAM DEATHMATCH" name="GamemodeLabel" class="gamemode-label" />
+                                <ui:Button name="GamemodeNextButton" class="gamemode-arrow-btn">
+                                    <ui:Label text="▶" class="gamemode-arrow" />
+                                </ui:Button>
+                            </ui:VisualElement>
 
-                        <!-- Main action: PLAY -->
-                        <ui:Button name="QuickPlayButton" class="btn-play">
-                            <ui:Label text="START GAME" class="btn-play-label" />
-                        </ui:Button>
-                        
-                        <!-- Secondary row -->
-                        <ui:VisualElement class="secondary-actions">
-                            <ui:Button name="CreateRoomButton" class="btn-secondary-action">
-                                <ui:Label text="CREATE / JOIN" class="btn-secondary-label" />
+                            <!-- Main action: PLAY -->
+                            <ui:Button name="QuickPlayButton" class="btn-play">
+                                <ui:Label text="START GAME" class="btn-play-label" />
                             </ui:Button>
-                            <ui:Button name="RefreshButton" class="btn-secondary-action">
-                                <ui:Label text="ROOMS" class="btn-secondary-label" />
-                            </ui:Button>
+                            
+                            <!-- Secondary row -->
+                            <ui:VisualElement class="secondary-actions">
+                                <ui:Button name="CreateRoomButton" class="btn-secondary-action">
+                                    <ui:Label text="CREATE / JOIN" class="btn-secondary-label" />
+                                </ui:Button>
+                                <ui:Button name="RefreshButton" class="btn-secondary-action">
+                                    <ui:Label text="ROOMS" class="btn-secondary-label" />
+                                </ui:Button>
+                            </ui:VisualElement>
                         </ui:VisualElement>
                     </ui:VisualElement>
                     
-                    <!-- RIGHT COLUMN: Equipped Weapons -->
+                    <!-- RIGHT COLUMN: Equipped Loadout -->
                     <ui:VisualElement class="right-column">
+                        <!-- Weapons Section -->
                         <ui:VisualElement name="WeaponsDisplay" class="equipped-weapons">
                             <ui:VisualElement name="PrimaryWeaponSlot" class="equipped-weapon-slot">
                                 <ui:VisualElement class="equipped-weapon-icon primary-weapon-icon" />
@@ -151,11 +159,28 @@
                                 <ui:VisualElement class="equipped-weapon-icon secondary-weapon-icon" />
                                 <ui:Label name="SecondaryWeaponLabel" text="Bolt" class="equipped-weapon-name" />
                             </ui:VisualElement>
-                            <ui:VisualElement name="KnifeWeaponSlot" class="equipped-weapon-slot">
-                                <ui:VisualElement class="equipped-weapon-icon knife-weapon-icon" />
-                                <ui:Label name="KnifeWeaponLabel" text="Default" class="equipped-weapon-name" />
+                        </ui:VisualElement>
+
+                        <!-- Gear Row: Knife + Hat side by side -->
+                        <ui:VisualElement class="gear-row">
+                            <ui:VisualElement name="KnifeWeaponSlot" class="gear-slot">
+                                <ui:VisualElement class="equipped-weapon-icon knife-weapon-icon gear-icon" />
+                                <ui:Label name="KnifeWeaponLabel" text="Default" class="gear-label" />
+                            </ui:VisualElement>
+                            <ui:VisualElement name="HatSlot" class="gear-slot">
+                                <ui:VisualElement class="equipped-hat-icon gear-icon" />
+                                <ui:Label name="HatLabel" text="None" class="gear-label" />
                             </ui:VisualElement>
                         </ui:VisualElement>
+
+                        <!-- Ultimate display (circle) -->
+                        <ui:VisualElement name="HomeUltimateSlot" class="home-ultimate-slot">
+                            <ui:VisualElement name="HomeUltimateCircle" class="home-ultimate-circle">
+                                <ui:VisualElement name="HomeUltimateIcon" class="home-ultimate-icon" />
+                            </ui:VisualElement>
+                            <ui:Label name="HomeUltimateLabel" text="ULTIMATE" class="home-ultimate-label" />
+                        </ui:VisualElement>
+
                     </ui:VisualElement>
                     
                 </ui:VisualElement>
@@ -241,7 +266,7 @@
                         </ui:VisualElement>
                         <ui:ScrollView name="KnifeSkinsGrid" class="skins-grid" />
                         <ui:VisualElement name="BottomControls" class="bottom-controls">
-                            <ui:Button name="KnifeSelectButton" text="SELECT" class="select-button" />
+                            <ui:Button name="KnifeSelectButton" text="EQUIPPED" class="select-button" />
                         </ui:VisualElement>
                     </ui:VisualElement>
                     
@@ -269,6 +294,10 @@
             <ui:VisualElement name="ShopContent" class="tab-content shop-content hidden">
                 <ui:VisualElement name="ShopTabRoot" class="shop-tab-root">
                     <ui:Label text="SHOP" class="tab-title shop-tab-title" />
+                    <ui:VisualElement name="ShopSubtabs" class="shop-subtabs">
+                        <ui:Button name="ShopWeaponsSubtab" text="WEAPONS" class="shop-subtab shop-subtab-active" />
+                        <ui:Button name="ShopHatsSubtab" text="HATS" class="shop-subtab" />
+                    </ui:VisualElement>
                     <ui:ScrollView name="ShopGrid" class="shop-grid" />
                     <ui:VisualElement class="shop-bottom-controls">
                         <ui:Label name="ShopSelectedItemLabel" text="" class="shop-selected-item-label" />
@@ -279,6 +308,26 @@
             
             <!-- ===================================
                  HATS TAB
+                 =================================== -->
+            <ui:VisualElement name="AbilitiesContent" class="tab-content abilities-content hidden">
+                <ui:VisualElement name="AbilitiesTabRoot" class="abilities-tab-root">
+                    <ui:Label text="ULTIMATES" class="tab-title abilities-tab-title" />
+                    
+                    <!-- Ultimate circles grid (populated by AbilitiesTabController) -->
+                    <ui:ScrollView name="UltimateGrid" class="ultimate-circles-grid" />
+
+                    <!-- Selected ultimate info (shown when tapping a circle) -->
+                    <ui:VisualElement name="UltimateSelectedInfo" class="ultimate-selected-info" style="display: none;">
+                        <ui:Label name="UltimateSelectedName" text="" class="ultimate-selected-name" />
+                        <ui:Button name="UltimateEquipButton" class="btn-ultimate-equip">
+                            <ui:Label text="EQUIPAR" class="btn-ultimate-equip-label" />
+                        </ui:Button>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            
+            <!-- ===================================
+                 HATS TAB (original)
                  =================================== -->
             <ui:VisualElement name="HatsContent" class="tab-content hats-content hidden">
                 <ui:VisualElement name="HatsTabRoot" class="hats-tab-root">
@@ -396,11 +445,14 @@
         <!-- Google Promo Panel (bottom-left, guest only) -->
         <ui:VisualElement name="GooglePromoPanel" class="google-promo-panel hidden">
             <ui:VisualElement class="google-promo-row">
-                <ui:Label text="Sign up with Google &amp; earn" class="google-promo-text" />
+                <ui:Label name="GooglePromoText" text="Sign up with Google &amp; earn" class="google-promo-text" />
                 <ui:Label text=" 1,000" class="google-promo-reward" />
                 <ui:VisualElement class="google-promo-essence-icon" />
             </ui:VisualElement>
-            <ui:Button name="GooglePromoButton" text="GET STARTED" class="google-promo-btn" />
+            <ui:Button name="GooglePromoButton" class="google-promo-btn">
+                <ui:VisualElement class="google-promo-btn-icon" />
+                <ui:Label text="GET STARTED" class="google-promo-btn-label" />
+            </ui:Button>
         </ui:VisualElement>
 
         <!-- Room List Panel (modal overlay, after promo so it covers everything) -->
@@ -459,14 +511,14 @@
         <ui:VisualElement name="SaveProgressOverlay" class="overlay hidden">
             <ui:VisualElement name="SaveProgressPanel" class="overlay-panel" style="width: 650px; max-width: 85%; padding: 36px;">
                 <ui:VisualElement class="overlay-header">
-                    <ui:Label text="LINK YOUR ACCOUNT" class="overlay-title" />
+                    <ui:Label name="SaveProgressTitle" text="LINK YOUR ACCOUNT" class="overlay-title" />
                     <ui:Button name="CloseSaveProgressButton" class="overlay-close-btn">
                         <ui:Label text="X" class="overlay-close-icon" />
                     </ui:Button>
                 </ui:VisualElement>
                 
                 <ui:VisualElement class="google-promo-row" style="margin-bottom: 12px; justify-content: center;">
-                    <ui:Label text="Sign up &amp; earn" class="overlay-description" style="margin-bottom: 0;" />
+                    <ui:Label name="SaveProgressText" text="Sign up &amp; earn" class="overlay-description" style="margin-bottom: 0;" />
                     <ui:Label text=" 1,000" class="google-promo-reward" />
                     <ui:VisualElement class="google-promo-essence-icon" />
                 </ui:VisualElement>
@@ -475,17 +527,19 @@
                     <ui:Label name="SaveProgressError" text="" class="error-label" style="display: none;" />
                 </ui:VisualElement>
                 
-                <!-- Google Sign Up button (image) -->
-                <ui:Button name="GoogleSignInButton" class="google-img-btn">
-                    <ui:VisualElement name="SignUpBtnImage" class="google-btn-image sign-up-image" />
+                <!-- Google Sign Up button -->
+                <ui:Button name="GoogleSignInButton" class="google-custom-btn">
+                    <ui:VisualElement class="google-custom-icon" />
+                    <ui:Label text="Sign up with Google" class="google-custom-label" />
                 </ui:Button>
                 
                 <ui:VisualElement class="overlay-divider" />
                 
-                <ui:Label text="Already have an account?" class="overlay-hint" />
-                <!-- Google Log In button (image) -->
-                <ui:Button name="LoginInsteadButton" class="google-img-btn" style="margin-top: 4px;">
-                    <ui:VisualElement name="SignInBtnImage" class="google-btn-image sign-in-image" />
+                <ui:Label name="AlreadyHaveAccountLabel" text="Already have an account?" class="overlay-hint" />
+                <!-- Google Log In button -->
+                <ui:Button name="LoginInsteadButton" class="google-custom-btn" style="margin-top: 4px;">
+                    <ui:VisualElement class="google-custom-icon" />
+                    <ui:Label text="Sign in with Google" class="google-custom-label" />
                 </ui:Button>
             </ui:VisualElement>
         </ui:VisualElement>
@@ -541,9 +595,10 @@
                     <ui:Label name="LoginError" text="" class="error-label" style="display: none;" />
                 </ui:VisualElement>
                 
-                <!-- Google Log In button (image) -->
-                <ui:Button name="ConfirmLoginButton" class="google-img-btn">
-                    <ui:VisualElement name="LoginSignInBtnImage" class="google-btn-image sign-in-image" />
+                <!-- Google Log In button -->
+                <ui:Button name="ConfirmLoginButton" class="google-custom-btn">
+                    <ui:VisualElement class="google-custom-icon" />
+                    <ui:Label text="Sign in with Google" class="google-custom-label" />
                 </ui:Button>
                 
                 <ui:Label name="LoginWarning" text="This will replace your current guest progress with your saved account." class="overlay-hint" style="color: rgba(255, 107, 61, 0.8); margin-top: 12px;" />
@@ -606,6 +661,17 @@
                                        low-value="0" high-value="1" value="0.12"
                                        show-input-field="false" />
                             <ui:Label name="MusicVolumeValueLabel" text="12%" class="settings-value-label" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="settings-section">
+                    <ui:Label name="LanguageSectionTitle" text="LANGUAGE" class="settings-section-title" />
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label name="LanguageSettingLabel" text="Language" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Button name="LangEnBtn" text="EN" class="settings-toggle-btn" />
+                            <ui:Button name="LangEsBtn" text="ES" class="settings-toggle-btn settings-toggle-active" />
                         </ui:VisualElement>
                     </ui:VisualElement>
                 </ui:VisualElement>

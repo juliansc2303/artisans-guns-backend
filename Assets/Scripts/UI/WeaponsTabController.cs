@@ -1,9 +1,10 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UIElements;
 using ArtisansGuns.Data;
 using ArtisansGuns.Managers;
 using System.Collections.Generic;
 using System.Linq;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -96,9 +97,20 @@ namespace ArtisansGuns.UI
             InitializeWeapons();
             ShowMainView();
 
+            // Deferred re-render: UIToolkit may not apply inline styles correctly
+            // on elements that just transitioned from display:none to visible.
+            // Scheduling a callback ensures the layout pass has completed first.
+            weaponsContent.schedule.Execute(() =>
+            {
+                if (enabled) UpdateMainViewDisplay();
+            });
+
             // Subscribe to loadout updates so we re-render if data arrives after init
             if (LoadoutManager.Instance != null)
                 LoadoutManager.Instance.OnLoadoutUpdated += OnLoadoutRefreshed;
+
+            LocalizationManager.OnLanguageChanged += LocalizeUI;
+            LocalizeUI();
         }
 
         private void OnDisable()
@@ -106,6 +118,7 @@ namespace ArtisansGuns.UI
             UnregisterEventHandlers();
             if (LoadoutManager.Instance != null)
                 LoadoutManager.Instance.OnLoadoutUpdated -= OnLoadoutRefreshed;
+            LocalizationManager.OnLanguageChanged -= LocalizeUI;
         }
 
         private void OnLoadoutRefreshed(LoadoutManager.LoadoutData loadout)
@@ -283,19 +296,11 @@ namespace ArtisansGuns.UI
         /// </summary>
         private void UpdateMainViewDisplay()
         {
-            // Null check for UI elements
-            if (primaryWeaponName == null || secondaryWeaponName == null)
-            {
-                // Debug.LogError("âŒ UpdateMainViewDisplay: Weapon name labels are null!");
-                return;
-            }
-            
             // Update primary weapon display
-            if (currentPrimaryWeapon != null)
+            if (currentPrimaryWeapon != null && primaryWeaponName != null)
             {
                 primaryWeaponName.text = currentPrimaryWeapon.displayName;
-                
-                // Use skin icon if a non-default skin is equipped
+
                 string primaryIconPath = currentPrimaryWeapon.iconPath;
                 if (currentPrimarySkinId != "default")
                 {
@@ -307,22 +312,17 @@ namespace ArtisansGuns.UI
                 {
                     primaryWeaponIcon.style.backgroundImage = new StyleBackground(primaryIcon);
                 }
-                else
-                {
-                    // Debug.LogWarning($"âš ï¸ Could not load icon: {currentPrimaryWeapon.iconPath}");
-                }
             }
-            else
+            else if (primaryWeaponName != null)
             {
-                primaryWeaponName.text = "PRIMARY";
+                primaryWeaponName.text = T("PRIMARY");
             }
 
             // Update secondary weapon display
-            if (currentSecondaryWeapon != null)
+            if (currentSecondaryWeapon != null && secondaryWeaponName != null)
             {
                 secondaryWeaponName.text = currentSecondaryWeapon.displayName;
-                
-                // Use skin icon if a non-default skin is equipped
+
                 string secondaryIconPath = currentSecondaryWeapon.iconPath;
                 if (currentSecondarySkinId != "default")
                 {
@@ -334,35 +334,30 @@ namespace ArtisansGuns.UI
                 {
                     secondaryWeaponIcon.style.backgroundImage = new StyleBackground(secondaryIcon);
                 }
-                else
-                {
-                    // Debug.LogWarning($"âš ï¸ Could not load icon: {currentSecondaryWeapon.iconPath}");
-                }
             }
-            else
+            else if (secondaryWeaponName != null)
             {
-                secondaryWeaponName.text = "SECONDARY";
+                secondaryWeaponName.text = T("SECONDARY");
             }
+
+            // Safety: ensure currentKnifeSkin is never null
+            if (currentKnifeSkin == null)
+                currentKnifeSkin = KnifeSkinDefinition.GetDefaultKnifeSkin();
 
             // Update knife display
             if (currentKnifeSkin != null && knifeName != null)
             {
                 knifeName.text = currentKnifeSkin.displayName;
-                
-                // Load icon from Resources
+
                 var knifeIconTexture = Resources.Load<Texture2D>(currentKnifeSkin.iconPath);
                 if (knifeIconTexture != null && knifeIcon != null)
                 {
                     knifeIcon.style.backgroundImage = new StyleBackground(knifeIconTexture);
                 }
-                else
-                {
-                    // Debug.LogWarning($"âš ï¸ Could not load icon: {currentKnifeSkin.iconPath}");
-                }
             }
-            else
+            else if (knifeName != null)
             {
-                if (knifeName != null) knifeName.text = "KNIFE";
+                knifeName.text = T("KNIFE");
             }
         }
 
@@ -392,8 +387,9 @@ namespace ArtisansGuns.UI
             weaponSkinsView?.AddToClassList("hidden");
 
             // Update title
-            string categoryName = category == WeaponDefinition.WeaponCategory.Primary ? "PRIMARY" : "SECONDARY";
-            selectionTitle.text = $"{categoryName} WEAPONS";
+            selectionTitle.text = category == WeaponDefinition.WeaponCategory.Primary
+                ? T("PRIMARY WEAPONS")
+                : T("SECONDARY WEAPONS");
 
             // Populate weapons grid
             PopulateWeaponsGrid(category);
@@ -413,7 +409,7 @@ namespace ArtisansGuns.UI
 
             // Update title
             if (knifeSkinsTitle != null)
-                knifeSkinsTitle.text = "KNIFE SKINS";
+                knifeSkinsTitle.text = T("KNIFE SKINS");
 
             // Populate knife skins grid
             PopulateKnifeSkinsGrid();
@@ -432,7 +428,7 @@ namespace ArtisansGuns.UI
             weaponSkinsView?.RemoveFromClassList("hidden");
 
             if (weaponSkinsTitle != null)
-                weaponSkinsTitle.text = $"{weapon.displayName} SKINS";
+                weaponSkinsTitle.text = $"{weapon.displayName} {T("SKINS")}";
 
             PopulateWeaponSkinsGrid(weapon);
             UpdateWeaponSkinEquipButton();
@@ -508,6 +504,10 @@ namespace ArtisansGuns.UI
             
             knifeSkinsGrid.Clear();
 
+            // Safety: ensure currentKnifeSkin is never null
+            if (currentKnifeSkin == null)
+                currentKnifeSkin = KnifeSkinDefinition.GetDefaultKnifeSkin();
+
             var allSkins = KnifeSkinDefinition.GetAllKnifeSkins();
             
             // Set initially selected skin based on current equipped skin
@@ -515,7 +515,8 @@ namespace ArtisansGuns.UI
 
             foreach (var skin in allSkins)
             {
-                var skinCard = CreateKnifeSkinCard(skin, skin == currentKnifeSkin);
+                bool isEquipped = currentKnifeSkin != null && skin.skinId == currentKnifeSkin.skinId;
+                var skinCard = CreateKnifeSkinCard(skin, isEquipped);
                 knifeSkinsGrid.Add(skinCard);
             }
 
@@ -731,12 +732,12 @@ namespace ArtisansGuns.UI
 
             if (isEquipped)
             {
-                weaponSkinEquipButton.text = "EQUIPPED";
+                weaponSkinEquipButton.text = T("EQUIPPED");
                 weaponSkinEquipButton.SetEnabled(false);
             }
             else
             {
-                weaponSkinEquipButton.text = "EQUIP";
+                weaponSkinEquipButton.text = T("EQUIP");
                 weaponSkinEquipButton.SetEnabled(true);
             }
         }
@@ -857,13 +858,17 @@ namespace ArtisansGuns.UI
             ArtisansGuns.Managers.SoundManager.Instance?.PlaySelect();
             // Debug.Log($"ðŸ”’ Locking in weapon: {selectedWeaponInGrid.displayName} ({currentSelectionCategory})");
 
-            // Update current weapon
+            // Update current weapon and reset skin to "default" when switching to a different weapon
             if (currentSelectionCategory == WeaponDefinition.WeaponCategory.Primary)
             {
+                if (currentPrimaryWeapon == null || currentPrimaryWeapon.weaponId != selectedWeaponInGrid.weaponId)
+                    currentPrimarySkinId = "default";
                 currentPrimaryWeapon = selectedWeaponInGrid;
             }
             else
             {
+                if (currentSecondaryWeapon == null || currentSecondaryWeapon.weaponId != selectedWeaponInGrid.weaponId)
+                    currentSecondarySkinId = "default";
                 currentSecondaryWeapon = selectedWeaponInGrid;
             }
 
@@ -944,13 +949,13 @@ namespace ArtisansGuns.UI
 
             if (isCurrentWeapon)
             {
-                lockInButton.text = "SELECTED";
+                lockInButton.text = T("SELECTED");
                 lockInButton.SetEnabled(false);
                 lockInButton.style.backgroundColor = new Color(0.3f, 0.6f, 0.3f, 0.8f); // Green-ish
             }
             else
             {
-                lockInButton.text = "LOCK IN";
+                lockInButton.text = T("LOCK IN");
                 lockInButton.SetEnabled(true);
                 lockInButton.style.backgroundColor = new Color(0.2f, 0.4f, 0.8f, 1f); // Blue
             }
@@ -979,25 +984,68 @@ namespace ArtisansGuns.UI
 
         private void UpdateKnifeSelectButton()
         {
-            if (knifeSelectButton == null || selectedKnifeSkinInGrid == null)
+            if (knifeSelectButton == null)
                 return;
 
+            // Safety: ensure currentKnifeSkin is never null
+            if (currentKnifeSkin == null)
+                currentKnifeSkin = KnifeSkinDefinition.GetDefaultKnifeSkin();
+
+            // If no skin selected in grid yet, default to current equipped
+            if (selectedKnifeSkinInGrid == null)
+                selectedKnifeSkinInGrid = currentKnifeSkin;
+
             // Check if the selected knife skin is the current equipped skin
-            bool isCurrentSkin = currentKnifeSkin != null && 
+            bool isCurrentSkin = currentKnifeSkin != null && selectedKnifeSkinInGrid != null &&
                                  currentKnifeSkin.skinId == selectedKnifeSkinInGrid.skinId;
 
             if (isCurrentSkin)
             {
-                knifeSelectButton.text = "EQUIPPED";
+                knifeSelectButton.text = T("EQUIPPED");
                 knifeSelectButton.SetEnabled(false);
                 knifeSelectButton.style.backgroundColor = new Color(0.3f, 0.6f, 0.3f, 0.8f); // Green-ish
             }
             else
             {
-                knifeSelectButton.text = "SELECT";
+                knifeSelectButton.text = T("SELECT");
                 knifeSelectButton.SetEnabled(true);
                 knifeSelectButton.style.backgroundColor = new Color(0.2f, 0.4f, 0.8f, 1f); // Blue
             }
+        }
+
+        private void LocalizeUI()
+        {
+            // Re-set UXML-default labels and button text
+            var root = uiDocument?.rootVisualElement;
+            if (root == null) return;
+            var weaponsContent = root.Q<VisualElement>("WeaponsContent");
+            if (weaponsContent == null) return;
+
+            var arsenalTitle = weaponsContent.Q<Label>("ArsenalTitle");
+            if (arsenalTitle != null) arsenalTitle.text = T("ARSENAL");
+            var arsenalSubtitle = weaponsContent.Q<Label>("ArsenalSubtitle");
+            if (arsenalSubtitle != null) arsenalSubtitle.text = T("ARSENAL // LOADOUT CUSTOMIZATION");
+
+            // Back button
+            var backLabel = backButton?.Q<Label>();
+            if (backLabel != null) backLabel.text = T("◄ BACK");
+
+            // Skins button
+            var skinsLabel = skinsButton?.Q<Label>();
+            if (skinsLabel != null) skinsLabel.text = T("SKINS");
+
+            // Knife back button
+            var knifeBackLabel = knifeBackButton?.Q<Label>();
+            if (knifeBackLabel != null) knifeBackLabel.text = T("◄ BACK");
+
+            // Weapon skins back button
+            var wsBackLabel = weaponSkinsBackButton?.Q<Label>();
+            if (wsBackLabel != null) wsBackLabel.text = T("◄ BACK");
+
+            // Refresh button labels that depend on state
+            UpdateLockInButton();
+            UpdateKnifeSelectButton();
+            UpdateWeaponSkinEquipButton();
         }
     }
 }

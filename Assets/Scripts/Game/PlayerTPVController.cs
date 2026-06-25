@@ -92,6 +92,12 @@ namespace ArtisansGuns.Game
 
         // TPV reload sounds (same array as FPV — played from weapon position so remote players hear)
         private AudioClip[] tpvReloadSounds;
+
+        // Procedural breathing / sway / recoil on the weapon holder
+        private WeaponHolderTPVAnimator _weaponHolderAnimator;
+
+        /// <summary>True when the TPV model renderers are enabled (visible to remote clients).</summary>
+        public bool IsTPVVisible { get; private set; } = true;
         
         public override void Spawned()
         {
@@ -122,6 +128,10 @@ namespace ArtisansGuns.Game
                 // This is a remote player - show TPV model
                 SetTPVVisibility(true);
                 // Debug.Log("👥 [PlayerTPVController] Remote player - TPV model visible");
+
+                // Add procedural weapon holder animation (breathing, sway, fire recoil)
+                if (tpvWeaponHolder != null)
+                    _weaponHolderAnimator = tpvWeaponHolder.gameObject.AddComponent<WeaponHolderTPVAnimator>();
             }
         }
         
@@ -184,6 +194,7 @@ namespace ArtisansGuns.Game
         {
             SetTPVVisibility(false);
             SetTPVWeaponActive(false);
+            IsTPVVisible = false;
         }
 
         /// <summary>Public shorthand — called by PlayerHealth on respawn.</summary>
@@ -191,6 +202,21 @@ namespace ArtisansGuns.Game
         {
             SetTPVVisibility(true);
             SetTPVWeaponActive(true);
+            IsTPVVisible = true;
+
+            // Reset weapon animator to idle state (bot may have died mid-reload).
+            // The weapon GO was disabled/re-enabled which resets its own Animator,
+            // but the upper-body (Spine2) animator stays on a live bone — force-reset it.
+            if (tpvWeaponAnimator != null)
+            {
+                tpvWeaponAnimator.ResetTrigger("ReloadTPV");
+            }
+            Animator upperBody = GetUpperBodyAnimator();
+            if (upperBody != null)
+            {
+                upperBody.enabled = false;
+                upperBody.enabled = true;
+            }
         }
 
         /// <summary>
@@ -367,11 +393,21 @@ namespace ArtisansGuns.Game
                     }
                     else
                     {
-                        // Gun shot: spawn muzzle flash + TPV trail + fire sound
+                        // Cancel any in-progress reload animation so the hand snaps back.
+                        // Weapon animators have no "Idle" state — transitions use Has Exit Time.
+                        // Toggle enabled to reset the state machine to the entry (default) state.
+                        if (tpvWeaponAnimator != null)
+                        {
+                            tpvWeaponAnimator.ResetTrigger("ReloadTPV");
+                            tpvWeaponAnimator.enabled = false;
+                            tpvWeaponAnimator.enabled = true;
+                        }
+                        // Gun shot: spawn muzzle flash + TPV trail + fire sound + recoil
                         Debug.Log($"[PlayerTPVController] HandleWeaponTriggerChanged -> SpawnTPVMuzzleFlash | prefab={(tpvMuzzleFlashPrefab != null ? tpvMuzzleFlashPrefab.name : "NULL")} firePoint={(tpvFirePoint != null ? tpvFirePoint.name : "NULL")}");
                         SpawnTPVMuzzleFlash();
                         SpawnTPVTrail();
                         PlayTPVFireSound();
+                        _weaponHolderAnimator?.TriggerRecoil();
                     }
                     break;
 
@@ -392,7 +428,11 @@ namespace ArtisansGuns.Game
         /// </summary>
         private void SpawnTPVMuzzleFlash()
         {
-            if (tpvMuzzleFlashPrefab == null || tpvFirePoint == null) return;
+            if (tpvMuzzleFlashPrefab == null || tpvFirePoint == null)
+            {
+                Debug.LogWarning($"[TPV-DIAG] SpawnTPVMuzzleFlash SKIPPED: prefab={(tpvMuzzleFlashPrefab != null ? "OK" : "NULL")} firePoint={(tpvFirePoint != null ? "OK" : "NULL")}");
+                return;
+            }
             
             GameObject flash = Instantiate(
                 tpvMuzzleFlashPrefab,
@@ -412,6 +452,7 @@ namespace ArtisansGuns.Game
                 ws / (parentWorldScale.z != 0f ? parentWorldScale.z : 1f)
             );
 
+            Debug.LogWarning($"[TPV-DIAG] MuzzleFlash SPAWNED at {tpvFirePoint.position} scale={flash.transform.localScale} layer={flash.layer} duration={tpvMuzzleFlashDuration}");
             Destroy(flash, tpvMuzzleFlashDuration);
         }
         
@@ -495,7 +536,11 @@ namespace ArtisansGuns.Game
         /// </summary>
         private void PlayTPVFireSound()
         {
-            if (tpvFireSound == null || tpvFirePoint == null) return;
+            if (tpvFireSound == null || tpvFirePoint == null)
+            {
+                Debug.LogWarning($"[TPV-DIAG] PlayTPVFireSound SKIPPED: sound={(tpvFireSound != null ? "OK" : "NULL")} firePoint={(tpvFirePoint != null ? "OK" : "NULL")}");
+                return;
+            }
 
             GameObject sfxGO = new GameObject("TPVFireSound");
             sfxGO.transform.position = tpvFirePoint.position;
@@ -507,6 +552,7 @@ namespace ArtisansGuns.Game
             src.maxDistance   = 40f;
             src.playOnAwake   = false;
             src.Play();
+            Debug.LogWarning($"[TPV-DIAG] FireSound PLAYING: {tpvFireSound.name} at {tpvFirePoint.position}");
             Destroy(sfxGO, tpvFireSound.length + 0.1f);
         }
 
@@ -526,11 +572,19 @@ namespace ArtisansGuns.Game
         /// </summary>
         private void SpawnTPVTrail()
         {
-            if (tpvTrailPrefab == null || tpvFirePoint == null || playerController == null) return;
+            if (tpvTrailPrefab == null || tpvFirePoint == null || playerController == null)
+            {
+                Debug.LogWarning($"[TPV-DIAG] SpawnTPVTrail SKIPPED: trail={(tpvTrailPrefab != null ? "OK" : "NULL")} firePoint={(tpvFirePoint != null ? "OK" : "NULL")} pc={(playerController != null ? "OK" : "NULL")}");
+                return;
+            }
 
             Vector3 start  = tpvFirePoint.position;
             Vector3 impact = playerController.NetworkShotImpactPoint;
-            if (impact == Vector3.zero) return; // not synced yet
+            if (impact == Vector3.zero)
+            {
+                Debug.LogWarning("[TPV-DIAG] SpawnTPVTrail SKIPPED: impact=Vector3.zero (not synced)");
+                return;
+            }
 
             GameObject trailGO = Instantiate(tpvTrailPrefab, start, Quaternion.identity);
 

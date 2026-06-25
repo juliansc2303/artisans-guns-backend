@@ -4,6 +4,7 @@ using UnityEngine.UIElements;
 using ArtisansGuns.Data;
 using ArtisansGuns.Managers;
 using System.Collections.Generic;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -47,6 +48,14 @@ namespace ArtisansGuns.UI
 
             CacheUIElements();
             InitializeAgents();
+
+            LocalizationManager.OnLanguageChanged += LocalizeUI;
+            LocalizeUI();
+        }
+
+        private void OnDisable()
+        {
+            LocalizationManager.OnLanguageChanged -= LocalizeUI;
         }
 
         private void CacheUIElements()
@@ -245,11 +254,11 @@ namespace ArtisansGuns.UI
                 {
                     if (isCurrent)
                     {
-                        selectedAgentNameBottom.text = $"CURRENT: {currentAgent.displayName}";
+                        selectedAgentNameBottom.text = $"{T("CURRENT:")} {currentAgent.displayName}";
                     }
                     else
                     {
-                        selectedAgentNameBottom.text = $"CURRENT: {currentAgent?.displayName ?? "NONE"}";
+                        selectedAgentNameBottom.text = $"{T("CURRENT:")} {currentAgent?.displayName ?? T("NONE")}";
                     }
                 }
 
@@ -259,19 +268,19 @@ namespace ArtisansGuns.UI
                     if (!isUnlocked)
                     {
                         // Locked agent - show BUY button
-                        agentLockInButton.text = $"BUY ({selectedAgent.bluePointCost} BP)";
+                        agentLockInButton.text = $"{T("BUY")} ({selectedAgent.bluePointCost} BP)";
                         agentLockInButton.SetEnabled(loadout != null && loadout.bluePoints >= selectedAgent.bluePointCost);
                     }
                     else if (isCurrent)
                     {
                         // Current agent - disable button
-                        agentLockInButton.text = "LOCK IN";
+                        agentLockInButton.text = T("LOCK IN");
                         agentLockInButton.SetEnabled(false);
                     }
                     else
                     {
                         // Unlocked but not current - show LOCK IN
-                        agentLockInButton.text = "LOCK IN";
+                        agentLockInButton.text = T("LOCK IN");
                         agentLockInButton.SetEnabled(true);
                     }
                 }
@@ -345,20 +354,33 @@ namespace ArtisansGuns.UI
             if (!isUnlocked)
             {
                 var agent = AgentDefinition.GetAgentById(selectedAgentId);
-                agentLockInButton.text = $"BUY ({agent?.bluePointCost ?? 0} BP)";
+                agentLockInButton.text = $"{T("BUY")} ({agent?.bluePointCost ?? 0} BP)";
                 var loadout = LoadoutManager.Instance?.GetLoadout();
                 agentLockInButton.SetEnabled(loadout != null && agent != null && loadout.bluePoints >= agent.bluePointCost);
             }
             else if (isCurrent)
             {
-                agentLockInButton.text = "SELECTED";
+                agentLockInButton.text = T("SELECTED");
                 agentLockInButton.SetEnabled(false);
             }
             else
             {
-                agentLockInButton.text = "LOCK IN";
+                agentLockInButton.text = T("LOCK IN");
                 agentLockInButton.SetEnabled(true);
             }
+        }
+
+        private void LocalizeUI()
+        {
+            // Re-set UXML-default labels
+            var selectTitle = agentsContent?.Q<Label>("AgentsTabTitle");
+            if (selectTitle != null) selectTitle.text = T("AGENTS");
+            if (selectedAgentNameTop != null && selectedAgentNameTop.text == "SELECT YOUR AGENT")
+                selectedAgentNameTop.text = T("SELECT YOUR AGENT");
+
+            // Refresh state-dependent labels
+            UpdateSelectedAgentDisplay();
+            UpdateLockInButtonState();
         }
     }
 }

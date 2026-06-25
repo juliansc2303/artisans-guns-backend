@@ -43,6 +43,9 @@ namespace ArtisansGuns.Networking
             public int CurrentStreak;
             public int BestStreak;
             public string SelectedHat;
+            public string Ability1;
+            public string Ability2;
+            public string Ultimate;
             public PlayerRef PlayerRef;
             public NetworkId NetworkId;
             public bool HasInputAuthority;
@@ -83,6 +86,9 @@ namespace ArtisansGuns.Networking
         [Networked] public int CurrentStreak { get; set; }  // Current kill streak (resets on death)
         [Networked] public int BestStreak { get; set; }  // Best kill streak this match
         [Networked] public NetworkString<_32> SelectedHat { get; set; }
+        [Networked] public NetworkString<_32> Ability1 { get; set; }
+        [Networked] public NetworkString<_32> Ability2 { get; set; }
+        [Networked] public NetworkString<_32> Ultimate { get; set; }
 
         public override void Spawned()
         {
@@ -167,6 +173,9 @@ namespace ArtisansGuns.Networking
                 string primarySkin = "default";
                 string secondarySkin = "default";
                 string selectedHat = "none";
+                string ability1 = "smoke_grenade";
+                string ability2 = "dash";
+                string ultimate = "crimson_ultimate";
                 
                 // Try LoadoutManager for selected agent (this is the agent like "CRIMSON", separate from character name)
                 if (ArtisansGuns.Managers.LoadoutManager.Instance != null && 
@@ -188,6 +197,23 @@ namespace ArtisansGuns.Networking
                     primarySkin = loadout.primaryWeapon?.skinId?.ToLower() ?? "default";
                     secondarySkin = loadout.secondaryWeapon?.skinId?.ToLower() ?? "default";
                     selectedHat = loadout.selectedHat ?? "none";
+                    ability1 = loadout.ability1 ?? "smoke_grenade";
+                    ability2 = ""; // No longer used — agents have 1 ability only
+                    ultimate = loadout.ultimate ?? "crimson_ultimate";
+
+                    // Override abilities from CharacterConfig (fixed per agent)
+                    string agentLower = selectedAgent?.ToLower() ?? "crimson";
+                    var charCfg = UnityEngine.Resources.Load<ArtisansGuns.Characters.CharacterConfig>($"Characters/{agentLower}");
+                    if (charCfg == null)
+                    {
+                        string cap = char.ToUpper(agentLower[0]) + agentLower.Substring(1).ToLower();
+                        charCfg = UnityEngine.Resources.Load<ArtisansGuns.Characters.CharacterConfig>($"Characters/{cap}");
+                    }
+                    if (charCfg != null)
+                    {
+                        if (charCfg.ability1 != null) ability1 = charCfg.ability1.abilityId;
+                        // Ultimate is selectable — keep from loadout, don't override from CharacterConfig
+                    }
                 }
                 else
                 {
@@ -203,7 +229,7 @@ namespace ArtisansGuns.Networking
                 // Debug.Log($"ðŸ"¤ Sending player data: username='{username}', characterName='{characterName}', selectedAgent='{selectedAgent}' (Level {level}, {primaryWeapon}/{secondaryWeapon}/{knifeWeapon})");
                 
                 // Send our data to be set - IMPORTANT: Send characterName (user's name) not selectedAgent
-                RPC_SetPlayerData(username, characterName, level, primaryWeapon, secondaryWeapon, knifeWeapon, selectedAgent, primarySkin, secondarySkin, selectedHat);
+                RPC_SetPlayerData(username, characterName, level, primaryWeapon, secondaryWeapon, knifeWeapon, selectedAgent, primarySkin, secondarySkin, selectedHat, ability1, ability2, ultimate);
                 
                 // Restore team from cache if available (e.g., after scene change destroyed old object)
                 if (!isRespawn && PlayerCache.TryGetValue(Object.InputAuthority, out var cachedData) && cachedData.TeamAssigned)
@@ -283,6 +309,9 @@ namespace ArtisansGuns.Networking
                 CurrentStreak = CurrentStreak,
                 BestStreak = BestStreak,
                 SelectedHat = SelectedHat.ToString(),
+                Ability1 = Ability1.ToString(),
+                Ability2 = Ability2.ToString(),
+                Ultimate = Ultimate.ToString(),
                 PlayerRef = Object.InputAuthority,
                 NetworkId = Object.Id,
                 HasInputAuthority = HasInputAuthority
@@ -376,7 +405,7 @@ namespace ArtisansGuns.Networking
             }
         }
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        private void RPC_SetPlayerData(string username, string characterName, int level, string primaryWeapon, string secondaryWeapon, string knifeWeapon, string selectedAgent, string primarySkin = "default", string secondarySkin = "default", string selectedHat = "none")
+        private void RPC_SetPlayerData(string username, string characterName, int level, string primaryWeapon, string secondaryWeapon, string knifeWeapon, string selectedAgent, string primarySkin = "default", string secondarySkin = "default", string selectedHat = "none", string ability1 = "smoke_grenade", string ability2 = "dash", string ultimate = "crimson_ultimate")
         {
             // Debug.Log($"ðŸ"¥ RPC_SetPlayerData received on StateAuthority: username='{username}', characterName='{characterName}', selectedAgent='{selectedAgent}', level={level}, weapons={primaryWeapon}/{secondaryWeapon}, knife={knifeWeapon}");
             
@@ -393,6 +422,9 @@ namespace ArtisansGuns.Networking
             PrimarySkin = primarySkin;
             SecondarySkin = secondarySkin;
             SelectedHat = selectedHat;
+            Ability1 = ability1;
+            Ability2 = ability2;
+            Ultimate = ultimate;
 
             // Debug.Log($"âœ… Player data set on StateAuthority: {Username} - CharacterName:'{CharacterName}', SelectedAgent:'{SelectedAgent}', CharacterType:{CharacterType}, Level {Level}, Knife:{KnifeWeapon}");
             

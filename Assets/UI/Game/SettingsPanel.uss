@@ -246,6 +246,31 @@
     letter-spacing: 4px;
 }
 
+/* TOGGLE BUTTONS (ON/OFF, LEFT/RIGHT, EN/ES) */
+.settings-toggle-btn {
+    width: 80px;
+    height: 36px;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.4);
+    -unity-font-style: bold;
+    margin-right: 6px;
+}
+
+.settings-toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.settings-toggle-active {
+    background-color: rgba(160, 100, 255, 0.25);
+    border-color: rgba(160, 100, 255, 0.6);
+    color: white;
+}
+
 /* EXIT CONFIRM DIALOG */
 .exit-confirm-overlay {
     position: absolute;
@@ -263,13 +288,13 @@
     border-width: 2px;
     border-color: rgba(255, 80, 40, 0.5);
     border-radius: 10px;
-    padding: 30px 40px;
+    padding: 35px 50px;
     align-items: center;
-    width: 380px;
+    width: 480px;
 }
 
 .exit-confirm-title {
-    font-size: 24px;
+    font-size: 22px;
     color: rgb(255, 100, 100);
     -unity-font-style: bold;
     letter-spacing: 3px;

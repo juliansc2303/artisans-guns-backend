@@ -33,6 +33,15 @@
                         <ui:Label name="SensitivityValueLabel" text="2.0" class="settings-value-label" />
                     </ui:VisualElement>
                 </ui:VisualElement>
+
+                <!-- Render Shadows Setting -->
+                <ui:VisualElement class="settings-item">
+                    <ui:Label name="RenderShadowsLabel" text="Render Shadows" class="settings-label" />
+                    <ui:VisualElement class="settings-value-row">
+                        <ui:Button name="ShadowsOnBtn" text="ON" class="settings-toggle-btn settings-toggle-active" />
+                        <ui:Button name="ShadowsOffBtn" text="OFF" class="settings-toggle-btn" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
                 
             </ui:VisualElement>
             

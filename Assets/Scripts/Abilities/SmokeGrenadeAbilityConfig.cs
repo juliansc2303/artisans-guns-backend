@@ -30,6 +30,11 @@ namespace ArtisansGuns.Abilities
         [Tooltip("How many seconds the smoke lasts")]
         public float smokeDuration = 8f;
 
+        [Header("Charges")]
+        [Tooltip("Max number of charges the player starts with (and resets to on kill)")]
+        [Range(1, 4)]
+        public int maxCharges = 2;
+
         [Header("TPV — visible to other players")]
         [Tooltip("Grenade prefab shown in the TPV weapon holder for other players. Must have LeftGrip and RightGrip children.")]
         public GameObject grenadePrefabTPV;

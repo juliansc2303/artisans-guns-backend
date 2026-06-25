@@ -21,6 +21,6 @@ MonoBehaviour:
   steerDetectionThreshold: 0.3
   minDeltaMagnitude: 0.111
   resetGapMultiplier: 3
-  movementSpreadAngle: 9
-  jumpSpreadAngle: 15
+  movementSpreadAngle: 3
+  jumpSpreadAngle: 9
   kickApplicationSpeed: 15

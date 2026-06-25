@@ -44,15 +44,42 @@ namespace ArtisansGuns.Networking
         [Networked] public int FinalTeamAKills { get; set; }
         [Networked] public int FinalTeamBKills { get; set; }
 
+        /// <summary>Running team kill totals — persist even when players leave the room.</summary>
+        [Networked] public int RunningTeamAKills { get; set; }
+        [Networked] public int RunningTeamBKills { get; set; }
+
         /// <summary>Unique match identifier (first 16 chars of GUID). Set by host at match start.</summary>
         [Networked, Capacity(16)] public NetworkString<_16> MatchId { get; set; }
 
-        /// <summary>Match duration in seconds (30 for testing, 600 for production).</summary>
-        private const int MATCH_DURATION_SECONDS = 30; // TODO: Change to 600 for production
+        /// <summary>Match duration in seconds.</summary>
+        private const int MATCH_DURATION_SECONDS = 600;
 
         // Host-only: track unique player IDs that have joined during this match
         private HashSet<int> _uniquePlayerIds = new HashSet<int>();
         private Coroutine _matchTimerCoroutine;
+        private Coroutine _preStartCoroutine;
+        private Coroutine _countdownCoroutine;
+
+        // ── Static backup: survives GSM destruction during host-leave ────
+        public struct MatchStateBackup
+        {
+            public bool Valid;
+            public int CountdownValue;
+            public bool CountdownStarted;
+            public bool GameInProgress;
+            public bool PreStartActive;
+            public int PreStartSecondsLeft;
+            public int MatchTimeRemaining;
+            public byte MatchResult;
+            public bool MatchEnded;
+            public int MaxSimultaneousPlayers;
+            public int FinalTeamAKills;
+            public int FinalTeamBKills;
+            public int RunningTeamAKills;
+            public int RunningTeamBKills;
+            public string MatchId;
+        }
+        public static MatchStateBackup Backup;
 
         private void Awake()
         {
@@ -77,8 +104,21 @@ namespace ArtisansGuns.Networking
                 Debug.Log("[GSM] Spawned — re-registered Instance (was null or stale)");
             }
             
-            // Initialize to "not started" state
-            if (HasStateAuthority)
+            // ── Restore from backup if the previous GSM was destroyed (host-leave) ──
+            if (HasStateAuthority && Backup.Valid)
+            {
+                Debug.Log("[GSM] Spawned — restoring match state from backup");
+                RestoreMatchState();
+                ResumeMatchIfNeeded();
+                return;
+            }
+            
+            // Only initialize to "not started" if there's no active match.
+            // When StateAuthority transfers mid-match (host left), the [Networked]
+            // properties already carry the correct live state — don't overwrite them.
+            // Also reset if MatchEnded is true — that means the previous match finished
+            // and this is a fresh session (e.g. Start Game pressed again).
+            if (HasStateAuthority && (MatchEnded || (!GameInProgress && !PreStartActive && !CountdownStarted)))
             {
                 CountdownValue = -1;
                 CountdownStarted = false;
@@ -89,8 +129,119 @@ namespace ArtisansGuns.Networking
                 MatchResult = 0;
                 MatchEnded = false;
                 MaxSimultaneousPlayers = 0;
+                Debug.Log("[GSM] Spawned — fresh state initialized (no active match or previous match ended)");
+            }
+            else if (HasStateAuthority)
+            {
+                Debug.Log($"[GSM] Spawned — StateAuthority acquired mid-game, preserving state (GameInProgress={GameInProgress}, PreStart={PreStartActive}, Countdown={CountdownStarted}, MatchEnded={MatchEnded}, TimeRemaining={MatchTimeRemaining})");
+                // Resume match timer if match is running but coroutine is dead (host left)
+                ResumeMatchIfNeeded();
             }
             Debug.Log($"[GSM] Spawned — HasStateAuthority={HasStateAuthority} Object={Object?.Id}");
+        }
+
+        /// <summary>
+        /// Called every Fusion tick. Used to detect StateAuthority transfer mid-match
+        /// and resume the match timer coroutine if needed.
+        /// </summary>
+        public override void FixedUpdateNetwork()
+        {
+            if (!HasStateAuthority) return;
+            ResumeMatchIfNeeded();
+        }
+
+        /// <summary>
+        /// If a match/prestart/countdown is active but the local coroutine is null
+        /// (because the previous host left), restart the appropriate coroutine.
+        /// </summary>
+        private void ResumeMatchIfNeeded()
+        {
+            if (!HasStateAuthority) return;
+
+            // ── 1. Match in progress but timer coroutine is dead ──
+            if (GameInProgress && !MatchEnded && _matchTimerCoroutine == null && MatchTimeRemaining > 0)
+            {
+                Debug.Log($"[GSM] Resuming match timer — {MatchTimeRemaining}s remaining");
+                _matchTimerCoroutine = StartCoroutine(MatchTimerCoroutine());
+                return;
+            }
+
+            // ── 2. Match timer hit 0 but EndMatch never ran ──
+            if (GameInProgress && !MatchEnded && MatchTimeRemaining <= 0 && _matchTimerCoroutine == null)
+            {
+                Debug.Log("[GSM] Gap: match timer at 0 but EndMatch never ran — ending match now");
+                GameInProgress = false;
+                EndMatch();
+                return;
+            }
+
+            // ── 3. PreStart still counting down (SecondsLeft > 0) ──
+            if (PreStartActive && PreStartSecondsLeft > 0 && !CountdownStarted && !GameInProgress && _preStartCoroutine == null)
+            {
+                Debug.Log($"[GSM] Resuming pre-start sequence — {PreStartSecondsLeft}s remaining");
+                PreStartActive = false; // Clear so DoPreStartSequenceFromSeconds can re-enter
+                _preStartCoroutine = StartCoroutine(DoPreStartSequenceFromSeconds(PreStartSecondsLeft));
+                return;
+            }
+
+            // ── 4. GAP: PreStart finished (SecondsLeft=0) but countdown never started ──
+            if (PreStartActive && PreStartSecondsLeft <= 0 && !CountdownStarted && !GameInProgress)
+            {
+                Debug.Log("[GSM] Gap: PreStart finished but countdown never started — starting countdown");
+                StartCountdown(); // sets CountdownStarted=true, CountdownValue=3
+                _countdownCoroutine = StartCoroutine(ResumeCountdownSequence());
+                return;
+            }
+
+            // ── 5. Countdown in progress (Value > 0) ──
+            if (CountdownStarted && CountdownValue > 0 && !GameInProgress && _countdownCoroutine == null)
+            {
+                Debug.Log($"[GSM] Resuming countdown from {CountdownValue}");
+                _countdownCoroutine = StartCoroutine(ResumeCountdownSequence());
+                return;
+            }
+
+            // ── 6. GAP: Countdown reached 0 but game never started ──
+            if (CountdownStarted && CountdownValue <= 0 && !GameInProgress)
+            {
+                Debug.Log("[GSM] Gap: Countdown at 0 but game never started — triggering game start");
+                TickCountdown(); // will set GameInProgress=true, start match timer
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Resumes the pre-start sequence from a given number of seconds remaining,
+        /// then flows into the 3-2-1 countdown.
+        /// </summary>
+        private System.Collections.IEnumerator DoPreStartSequenceFromSeconds(int secondsLeft)
+        {
+            PreStartActive = true;
+            for (int i = secondsLeft; i > 0; i--)
+            {
+                PreStartSecondsLeft = i;
+                yield return new WaitForSeconds(1f);
+            }
+            PreStartSecondsLeft = 0;
+            StartCountdown();
+            for (int i = 0; i < 4; i++)
+            {
+                yield return new WaitForSeconds(1f);
+                TickCountdown();
+            }
+        }
+
+        /// <summary>
+        /// Resumes a 3-2-1 countdown that was interrupted by host leaving.
+        /// </summary>
+        private System.Collections.IEnumerator ResumeCountdownSequence()
+        {
+            int remaining = CountdownValue;
+            for (int i = 0; i <= remaining; i++)
+            {
+                yield return new WaitForSeconds(1f);
+                TickCountdown();
+            }
         }
 
         /// <summary>
@@ -194,6 +345,11 @@ namespace ArtisansGuns.Networking
                 Debug.Log("[RPC_ResetAllPlayers] Team not assigned yet — skipping reposition (DelayedTeamAssignment will handle it)");
             }
             
+            // ── Step 3: Host resets bots (kills, deaths, position) ──
+            var botMgr = ArtisansGuns.AI.BotManager.Instance;
+            if (botMgr != null && runner.IsSharedModeMasterClient)
+                botMgr.ResetAllBotsForNewRound();
+
             // Destroy any dropped weapons left in the scene from PreStart
             ArtisansGuns.Weapons.DroppedWeapon.DestroyAll();
 
@@ -222,6 +378,11 @@ namespace ArtisansGuns.Networking
             var abilitySystem = localPD.GetComponent<ArtisansGuns.Abilities.AbilitySystem>();
             if (abilitySystem != null)
                 abilitySystem.ResetForNewMatch();
+
+            // Force-stand if crouching (clear crouch state for match start)
+            var playerCtrl = localPD.GetComponent<ArtisansGuns.Game.PlayerController>();
+            if (playerCtrl != null)
+                playerCtrl.ForceStand();
         }
 
         /// <summary>
@@ -248,6 +409,8 @@ namespace ArtisansGuns.Networking
                 MatchEnded = false;
                 FinalTeamAKills = 0;
                 FinalTeamBKills = 0;
+                RunningTeamAKills = 0;
+                RunningTeamBKills = 0;
                 MatchId = System.Guid.NewGuid().ToString().Substring(0, 16);
                 _uniquePlayerIds.Clear();
                 TrackCurrentPlayers();
@@ -295,16 +458,9 @@ namespace ArtisansGuns.Networking
         {
             if (!HasStateAuthority) return;
 
-            int teamAKills = 0;
-            int teamBKills = 0;
-
-            var allPlayers = FindObjectsOfType<PlayerNetworkData>();
-            foreach (var pd in allPlayers)
-            {
-                if (pd == null || pd.Object == null) continue;
-                if (pd.Team == 0) teamAKills += pd.Kills;
-                else if (pd.Team == 1) teamBKills += pd.Kills;
-            }
+            // Use running counters — they survive player disconnects
+            int teamAKills = RunningTeamAKills;
+            int teamBKills = RunningTeamBKills;
 
             // Store authoritative final scores so all clients see the same values
             FinalTeamAKills = teamAKills;
@@ -319,11 +475,18 @@ namespace ArtisansGuns.Networking
 
             GameInProgress = false;
             MatchEnded = true;
+
+            // Stop bot AI but keep them alive for the scoreboard
+            var botMgr = ArtisansGuns.AI.BotManager.Instance;
+            if (botMgr != null)
+                botMgr.StopAllBotAI();
+
             Debug.Log($"[GSM] Match ended — TeamA:{teamAKills} vs TeamB:{teamBKills}, Result={MatchResult}");
         }
 
         /// <summary>
         /// Returns team kills for scoreboard display. 0=TeamA, 1=TeamB.
+        /// Uses running counters that persist even after players disconnect.
         /// </summary>
         public (int teamAKills, int teamBKills) GetTeamKills()
         {
@@ -331,15 +494,20 @@ namespace ArtisansGuns.Networking
             if (MatchEnded)
                 return (FinalTeamAKills, FinalTeamBKills);
 
-            int a = 0, b = 0;
-            var allPlayers = FindObjectsOfType<PlayerNetworkData>();
-            foreach (var pd in allPlayers)
-            {
-                if (pd == null || pd.Object == null) continue;
-                if (pd.Team == 0) a += pd.Kills;
-                else if (pd.Team == 1) b += pd.Kills;
-            }
-            return (a, b);
+            return (RunningTeamAKills, RunningTeamBKills);
+        }
+
+        /// <summary>
+        /// Called by the killer's client to increment the global team kill counter.
+        /// Routed to StateAuthority which writes the [Networked] property.
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void RPC_AddTeamKill(int team)
+        {
+            if (team == 0)
+                RunningTeamAKills++;
+            else if (team == 1)
+                RunningTeamBKills++;
         }
 
         /// <summary>
@@ -372,9 +540,21 @@ namespace ArtisansGuns.Networking
                 Debug.LogWarning("[GSM] BeginPreStartSequence called but we don't have StateAuthority — ignoring");
                 return;
             }
+
+            // If a previous match ended, reset stale flags so a new game can start
+            if (MatchEnded)
+            {
+                MatchEnded = false;
+                MatchResult = 0;
+                GameInProgress = false;
+                CountdownStarted = false;
+                PreStartActive = false;
+                Debug.Log("[GSM] BeginPreStartSequence — cleared stale MatchEnded state");
+            }
+
             if (PreStartActive || CountdownStarted || GameInProgress) return;
             Debug.Log("[GSM] BeginPreStartSequence — starting 12 s warm-up");
-            StartCoroutine(DoPreStartSequence());
+            _preStartCoroutine = StartCoroutine(DoPreStartSequence());
         }
 
         private System.Collections.IEnumerator DoPreStartSequence()
@@ -434,6 +614,16 @@ namespace ArtisansGuns.Networking
             {
                 StopCoroutine(_matchTimerCoroutine);
                 _matchTimerCoroutine = null;
+            }
+            if (_preStartCoroutine != null)
+            {
+                StopCoroutine(_preStartCoroutine);
+                _preStartCoroutine = null;
+            }
+            if (_countdownCoroutine != null)
+            {
+                StopCoroutine(_countdownCoroutine);
+                _countdownCoroutine = null;
             }
             _uniquePlayerIds.Clear();
             
@@ -523,6 +713,84 @@ namespace ArtisansGuns.Networking
             }
         }
 
+        // ── Save/Restore match state across GSM destruction ─────────────
+
+        /// <summary>
+        /// Snapshots all [Networked] match state into a static struct so it
+        /// survives the GSM being destroyed during a host-leave.
+        /// </summary>
+        public void SaveMatchState()
+        {
+            Backup = new MatchStateBackup
+            {
+                Valid = true,
+                CountdownValue = CountdownValue,
+                CountdownStarted = CountdownStarted,
+                GameInProgress = GameInProgress,
+                PreStartActive = PreStartActive,
+                PreStartSecondsLeft = PreStartSecondsLeft,
+                MatchTimeRemaining = MatchTimeRemaining,
+                MatchResult = MatchResult,
+                MatchEnded = MatchEnded,
+                MaxSimultaneousPlayers = MaxSimultaneousPlayers,
+                FinalTeamAKills = FinalTeamAKills,
+                FinalTeamBKills = FinalTeamBKills,
+                RunningTeamAKills = RunningTeamAKills,
+                RunningTeamBKills = RunningTeamBKills,
+                MatchId = MatchId.ToString()
+            };
+            Debug.Log($"[GSM] SaveMatchState — GameInProgress={GameInProgress}, TimeRemaining={MatchTimeRemaining}, MatchEnded={MatchEnded}");
+        }
+
+        /// <summary>
+        /// Restores the backed-up match state onto this (newly spawned) GSM.
+        /// Only call with HasStateAuthority. Clears the backup after restoring.
+        /// </summary>
+        public void RestoreMatchState()
+        {
+            if (!Backup.Valid) return;
+            if (!HasStateAuthority)
+            {
+                Debug.LogWarning("[GSM] RestoreMatchState called without StateAuthority — skipping");
+                return;
+            }
+
+            CountdownValue = Backup.CountdownValue;
+            CountdownStarted = Backup.CountdownStarted;
+            GameInProgress = Backup.GameInProgress;
+            PreStartActive = Backup.PreStartActive;
+            PreStartSecondsLeft = Backup.PreStartSecondsLeft;
+            MatchTimeRemaining = Backup.MatchTimeRemaining;
+            MatchResult = Backup.MatchResult;
+            MatchEnded = Backup.MatchEnded;
+            MaxSimultaneousPlayers = Backup.MaxSimultaneousPlayers;
+            FinalTeamAKills = Backup.FinalTeamAKills;
+            FinalTeamBKills = Backup.FinalTeamBKills;
+            RunningTeamAKills = Backup.RunningTeamAKills;
+            RunningTeamBKills = Backup.RunningTeamBKills;
+            MatchId = Backup.MatchId ?? "";
+            Backup.Valid = false;
+
+            Debug.Log($"[GSM] RestoreMatchState — GameInProgress={GameInProgress}, TimeRemaining={MatchTimeRemaining}, MatchEnded={MatchEnded}");
+        }
+
+        /// <summary>
+        /// Fusion callback: GSM is being despawned from the network.
+        /// Save a snapshot so the remaining client can restore state on a fresh GSM.
+        /// </summary>
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            if (hasState)
+            {
+                Debug.Log("[GSM] Despawned — saving match state backup");
+                SaveMatchState();
+            }
+            else
+            {
+                Debug.LogWarning("[GSM] Despawned — no state available to save");
+            }
+        }
+
         private void OnDestroy()
         {
             if (Instance == this)
@@ -531,5 +799,6 @@ namespace ArtisansGuns.Networking
                 Instance = null;
             }
         }
+
     }
 }

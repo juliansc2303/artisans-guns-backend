@@ -2,6 +2,7 @@
 using UnityEngine.UIElements;
 using UnityEngine.SceneManagement;
 using ArtisansGuns.Auth;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -120,7 +121,7 @@ namespace ArtisansGuns.UI
             loginPanel?.AddToClassList("hidden");
             registerPanel?.AddToClassList("hidden");
             successPanel?.AddToClassList("hidden");
-            ShowLoading("CONNECTING...", "SETTING UP SESSION");
+            ShowLoading(T("CONNECTING..."), T("SETTING UP SESSION"));
         }
 
         private void Start()
@@ -199,10 +200,10 @@ namespace ArtisansGuns.UI
             characterNameDisplay.text = characterName;
         }
 
-        private void ShowLoading(string message = "INITIATING SESSION...", string subtext = "CONNECTING TO SERVER")
+        private void ShowLoading(string message = null, string subtext = null)
         {
-            if (loadingMessage != null) loadingMessage.text = message;
-            if (loadingSubtext != null) loadingSubtext.text = subtext;
+            if (loadingMessage != null) loadingMessage.text = message ?? T("INITIATING SESSION...");
+            if (loadingSubtext != null) loadingSubtext.text = subtext ?? T("CONNECTING TO SERVER");
             loadingOverlay?.RemoveFromClassList("hidden");
             StartSpinnerAnimation();
         }
@@ -251,16 +252,16 @@ namespace ArtisansGuns.UI
 
             if (string.IsNullOrEmpty(username))
             {
-                ShowLoginError("Username is required");
+                ShowLoginError(T("Username is required"));
                 return;
             }
             if (string.IsNullOrEmpty(password))
             {
-                ShowLoginError("Password is required");
+                ShowLoginError(T("Password is required"));
                 return;
             }
 
-            ShowLoading("INITIATING SESSION...", "CONNECTING TO SERVER (MAY TAKE UP TO 120S)");
+            ShowLoading(T("INITIATING SESSION..."), T("CONNECTING TO SERVER (MAY TAKE UP TO 120S)"));
             AuthManager.Instance.Login(username, password);
         }
 
@@ -277,37 +278,37 @@ namespace ArtisansGuns.UI
 
             if (string.IsNullOrEmpty(username) || username.Length < 3 || username.Length > 50)
             {
-                ShowRegisterError("Username must be between 3 and 50 characters");
+                ShowRegisterError(T("Username must be between 3 and 50 characters"));
                 return;
             }
             if (string.IsNullOrEmpty(password) || password.Length < 6)
             {
-                ShowRegisterError("Password must be at least 6 characters");
+                ShowRegisterError(T("Password must be at least 6 characters"));
                 return;
             }
             if (password != repeatPassword)
             {
-                ShowRegisterError("Passwords do not match");
+                ShowRegisterError(T("Passwords do not match"));
                 return;
             }
             if (string.IsNullOrEmpty(characterName) || characterName.Length < 3 || characterName.Length > 20)
             {
-                ShowRegisterError("Character name must be between 3 and 20 characters");
+                ShowRegisterError(T("Character name must be between 3 and 20 characters"));
                 return;
             }
             if (string.IsNullOrWhiteSpace(characterName))
             {
-                ShowRegisterError("Character name cannot be only spaces");
+                ShowRegisterError(T("Character name cannot be only spaces"));
                 return;
             }
             if (!System.Text.RegularExpressions.Regex.IsMatch(characterName, @"^[a-zA-Z0-9\s]+$"))
             {
-                ShowRegisterError("Character name can only contain letters, numbers and spaces");
+                ShowRegisterError(T("Character name can only contain letters, numbers and spaces"));
                 return;
             }
 
             createAccountButton.SetEnabled(false);
-            ShowLoading("CREATING ACCOUNT...", "SETTING UP USER");
+            ShowLoading(T("CREATING ACCOUNT..."), T("SETTING UP USER"));
             AuthManager.Instance.Register(username, password, characterName);
         }
 

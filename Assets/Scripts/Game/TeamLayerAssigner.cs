@@ -110,9 +110,42 @@ namespace ArtisansGuns.Game
         private static void SetLayerRecursive(GameObject go, int layer)
         {
             go.layer = layer;
+
+            // Ensure the head bone (and children with colliders) are tagged "Head"
+            // so FireWeapon's CompareTag("Head") headshot detection works.
+            if (go.name == "mixamorig:Head")
+                EnsureHeadTag(go);
+
             foreach (Transform child in go.transform)
             {
                 SetLayerRecursive(child.gameObject, layer);
+            }
+        }
+
+        /// <summary>
+        /// Tags the head bone and any child colliders as "Head".
+        /// If no collider exists on the bone or its children, adds a SphereCollider trigger.
+        /// </summary>
+        private static void EnsureHeadTag(GameObject headBone)
+        {
+            bool foundCollider = false;
+
+            // Tag any existing colliders on this bone and direct children
+            var cols = headBone.GetComponentsInChildren<Collider>(true);
+            foreach (var col in cols)
+            {
+                col.gameObject.tag = "Head";
+                foundCollider = true;
+            }
+
+            // No collider at all → add a trigger SphereCollider on the head bone
+            if (!foundCollider)
+            {
+                var sphere = headBone.AddComponent<SphereCollider>();
+                sphere.isTrigger = false;
+                sphere.radius = 0.12f;
+                sphere.center = Vector3.zero;
+                headBone.tag = "Head";
             }
         }
 

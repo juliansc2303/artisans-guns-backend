@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UIElements;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
@@ -8,6 +8,7 @@ using ArtisansGuns.Auth;
 using ArtisansGuns.Networking;
 using ArtisansGuns.Managers;
 using ArtisansGuns.Data;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -23,6 +24,7 @@ namespace ArtisansGuns.UI
         private AgentsTabController agentsTabController;
         private ShopTabController shopTabController;
         private HatsTabController hatsTabController;
+        private AbilitiesTabController abilitiesTabController;
         
         // Settings Panel Controller (unified across scenes)
         private SettingsUIController settingsUIController;
@@ -39,6 +41,7 @@ namespace ArtisansGuns.UI
         private VisualElement agentsContent;
         private VisualElement shopContent;
         private VisualElement hatsContent;
+        private VisualElement abilitiesContent;
         private VisualElement roomContent; // ROOM TAB (when in a room)
 
         // Room UI Elements
@@ -49,6 +52,7 @@ namespace ArtisansGuns.UI
         private Button charactersButton;
         private Button shopButton;
         private Button hatsButton;
+        private Button abilitiesButton;
         private Label logoLabel;
         private Label playersCountLabel;
         private ScrollView teamAList;
@@ -60,6 +64,11 @@ namespace ArtisansGuns.UI
         private VisualElement countdownOverlay;
         private Label countdownLabel;
         private Label mapHeaderLabel;
+
+        // Countdown audio
+        private int lastCountdownValue = -1;
+        private AudioClip startingGameClip;
+        private AudioClip gameStartedClip;
         private Label roomIdLabel;
         private Label gameModeLabel;
         private Label maxPlayersLabel;
@@ -91,6 +100,10 @@ namespace ArtisansGuns.UI
         private VisualElement knifeWeaponIconHome;
         private Label knifeWeaponLabelHome;
         private VisualElement characterPreview;
+
+        [Header("3D Character Preview")]
+        [SerializeField] private LobbyCharacterPreview lobbyCharacterPreview;
+        [SerializeField] private RenderTexture characterRenderTexture;
 
         // Room List
         private ScrollView roomList;
@@ -168,6 +181,9 @@ namespace ArtisansGuns.UI
         // Initial load tracking
         private bool initialLoadComplete = false;
 
+        // Backend gate — continuously enforced
+        private bool backendGateShowing = false;
+
         // Room data (real-time from Fusion)
         private List<SessionInfo> activeRooms = new List<SessionInfo>();
         private const int MAX_ROOMS = 10;
@@ -201,6 +217,12 @@ namespace ArtisansGuns.UI
             if (hatsTabController != null)
             {
                 hatsTabController.enabled = false; // Start disabled
+            }
+            
+            abilitiesTabController = GetComponent<AbilitiesTabController>();
+            if (abilitiesTabController != null)
+            {
+                abilitiesTabController.enabled = false; // Start disabled
             }
         }
 
@@ -254,8 +276,10 @@ namespace ArtisansGuns.UI
                 UpdateCharacterDisplay();
                 UpdateCurrencyDisplay();
 
-                // If loadout already has data, dismiss the loading screen
-                if (!initialLoadComplete && LoadoutManager.Instance.IsInitialized())
+                // Only dismiss loading if loadout was populated from a CONFIRMED
+                // backend session (not stale PlayerPrefs cache).
+                if (!initialLoadComplete && LoadoutManager.Instance.IsInitialized()
+                    && AuthManager.Instance != null && AuthManager.Instance.HasBackendToken())
                 {
                     initialLoadComplete = true;
                     HideLoading();
@@ -270,6 +294,30 @@ namespace ArtisansGuns.UI
             if (AuthManager.Instance != null)
             {
                 AuthManager.Instance.OnConnectionFailed += HandleConnectionFailed;
+            }
+        }
+
+        private void Update()
+        {
+            // Continuous backend gate — loading screen must ALWAYS be visible
+            // when the backend isn't ready, including after returning from a match.
+            bool hasToken = AuthManager.Instance != null && AuthManager.Instance.HasBackendToken();
+            bool loadoutReady = LoadoutManager.Instance != null && LoadoutManager.Instance.IsInitialized();
+            bool backendReady = hasToken && loadoutReady;
+
+            if (!backendReady && !backendGateShowing)
+            {
+                // Backend not ready — force-show loading
+                backendGateShowing = true;
+                initialLoadComplete = false;
+                ShowLoading(T("CONNECTING..."), T("WAITING FOR SERVER"));
+            }
+            else if (backendReady && backendGateShowing)
+            {
+                // Backend became ready — dismiss loading
+                backendGateShowing = false;
+                initialLoadComplete = true;
+                HideLoading();
             }
         }
 
@@ -342,6 +390,12 @@ namespace ArtisansGuns.UI
             shopButton = root.Q<Button>("ShopButton");
             hatsButton = root.Q<Button>("HatsButton");
             hatsContent = root.Q<VisualElement>("HatsContent");
+            abilitiesButton = root.Q<Button>("AbilitiesButton");
+            abilitiesContent = root.Q<VisualElement>("AbilitiesContent");
+
+            // Re-enable abilities tab for ultimate selection
+            if (abilitiesButton != null)
+                abilitiesButton.style.display = DisplayStyle.Flex;
             logoLabel = root.Q<Label>("LogoLabel");
             playersCountLabel = root.Q<Label>("PlayersCountLabel");
             
@@ -455,7 +509,7 @@ namespace ArtisansGuns.UI
             // Show loading overlay while auth + loadout initialize
             if (!initialLoadComplete)
             {
-                ShowLoading("CONNECTING...", "INITIALIZING SESSION");
+                ShowLoading(T("CONNECTING..."), T("INITIALIZING SESSION"));
             }
 
             // Settings panel elements - will be handled by SettingsUIController
@@ -545,6 +599,10 @@ namespace ArtisansGuns.UI
             
             // Set initial header state (lobby tab active on launch)
             UpdateHeaderButtonStates("lobby");
+
+            // Subscribe to language changes so we can re-render all text
+            LocalizationManager.OnLanguageChanged += LocalizeUI;
+            LocalizeUI();
         }
 
         private void OnDisable()
@@ -584,6 +642,7 @@ namespace ArtisansGuns.UI
                 AuthManager.Instance.OnLoginSuccess -= HandleLoginSuccessInLobby;
             }
             if (retryConnectionButton != null) retryConnectionButton.clicked -= OnRetryConnectionClicked;
+            LocalizationManager.OnLanguageChanged -= LocalizeUI;
         }
 
         private void RegisterEvents()
@@ -608,6 +667,17 @@ namespace ArtisansGuns.UI
             charactersButton?.RegisterCallback<ClickEvent>(evt => SetActiveTab("agents"));
             shopButton?.RegisterCallback<ClickEvent>(evt => SetActiveTab("shop"));
             hatsButton?.RegisterCallback<ClickEvent>(evt => SetActiveTab("hats"));
+            abilitiesButton?.RegisterCallback<ClickEvent>(evt => SetActiveTab("abilities"));
+
+            // Home screen shortcuts: click loadout items to jump to their tab
+            var rootVE = uiDocument.rootVisualElement;
+            rootVE.Q<VisualElement>("CharacterPanel")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("agents"));
+            rootVE.Q<VisualElement>("PrimaryWeaponSlot")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("weapons"));
+            rootVE.Q<VisualElement>("SecondaryWeaponSlot")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("weapons"));
+            rootVE.Q<VisualElement>("KnifeWeaponSlot")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("weapons"));
+            rootVE.Q<VisualElement>("HatSlot")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("hats"));
+            rootVE.Q<VisualElement>("AbilitySlotsContainer")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("agents"));
+            rootVE.Q<VisualElement>("HomeUltimateSlot")?.RegisterCallback<ClickEvent>(evt => SetActiveTab("abilities"));
 
             // Room elements
             readyButton?.RegisterCallback<ClickEvent>(evt => OnReadyButtonClicked());
@@ -707,10 +777,24 @@ namespace ArtisansGuns.UI
 
         private void OnLogoutPerformed()
         {
-            // Immediately refresh UI to guest state (don't wait for OnGuestReady coroutine)
             UpdateSaveProgressButtonVisibility();
             settingsUIController?.UpdateLogoutButtonVisibility();
-            UpdateCharacterDisplay();
+            
+            // Force refresh loadout from backend for the new guest session
+            if (LoadoutManager.Instance != null)
+            {
+                LoadoutManager.Instance.RefreshLoadout(success =>
+                {
+                    UpdateCharacterDisplay();
+                    UpdateCurrencyDisplay();
+                    // Re-populate active tab
+                    SetActiveTab("lobby");
+                });
+            }
+            else
+            {
+                UpdateCharacterDisplay();
+            }
         }
 
         // ===================================
@@ -758,43 +842,31 @@ namespace ArtisansGuns.UI
 
         private void UpdateCharacterDisplay()
         {
-            // Update player ident with the characterName from registration
-            // This doesn't depend on LoadoutManager, so do it first
-            if (playerIdentLabel != null)
+            // Update player name display (above XP bar)
             {
-                string identText = "IDENT // CHARACTER";
+                string identText = "";
                 
                 // Try AuthManager first
                 if (AuthManager.Instance != null)
                 {
                     var user = AuthManager.Instance.GetCurrentUser();
-                    // Debug.Log($"ðŸ” DEBUG - AuthManager.GetCurrentUser() = {(user != null ? "not null" : "NULL")}");
-                    if (user != null)
-                    {
-                        // Debug.Log($"ðŸ” DEBUG - user.characterName = '{user.characterName}'");
-                        if (!string.IsNullOrEmpty(user.characterName))
-                        {
-                            identText = user.characterName.ToUpper();
-                        }
-                    }
+                    if (user != null && !string.IsNullOrEmpty(user.characterName))
+                        identText = user.characterName.ToUpper();
                 }
                 
                 // Fallback to PlayerPrefs
-                if (identText == "IDENT // CHARACTER" && PlayerPrefs.HasKey("user_character_name"))
+                if (string.IsNullOrEmpty(identText) && PlayerPrefs.HasKey("user_character_name"))
                 {
                     string charName = PlayerPrefs.GetString("user_character_name", "");
-                    // Debug.Log($"ðŸ” DEBUG - PlayerPrefs user_character_name = '{charName}'");
                     if (!string.IsNullOrEmpty(charName))
-                    {
                         identText = charName.ToUpper();
-                    }
                 }
                 
-                playerIdentLabel.text = identText;
-                // Debug.Log($"âœ… PlayerIdentLabel set to: '{identText}'");
-
-                // Also show the player's name above the XP bar
-                if (playerNameLabel != null && identText != "IDENT // CHARACTER")
+                // Fallback to username from loadout
+                if (string.IsNullOrEmpty(identText) && LoadoutManager.Instance != null && LoadoutManager.Instance.IsInitialized())
+                    identText = LoadoutManager.Instance.GetLoadout().username?.ToUpper() ?? "";
+                
+                if (playerNameLabel != null && !string.IsNullOrEmpty(identText))
                     playerNameLabel.text = identText;
             }
             
@@ -814,40 +886,36 @@ namespace ArtisansGuns.UI
                             knifeWeaponLabelHome = root.Q<Label>("KnifeWeaponLabel");
                         if (primaryWeaponIconHome == null)
                             primaryWeaponIconHome = root.Q<VisualElement>("PrimaryWeaponSlot")?.Q<VisualElement>(className: "equipped-weapon-icon");
-                        if (secondaryWeaponIconHome == null)
-                            secondaryWeaponIconHome = root.Q<VisualElement>("SecondaryWeaponSlot")?.Q<VisualElement>(className: "equipped-weapon-icon");
                     }
                 }
+
+                // Update character name + username from backend
+                string selectedCharacter = loadout.selectedCharacter ?? "crimson";
+                string displayName = selectedCharacter.ToUpper();
+                if (characterNameLabel != null) characterNameLabel.text = displayName;
+                if (usernameLabel != null) usernameLabel.text = displayName;
                 
-                // Update all labels with backend data
-                if (characterNameLabel != null)
-                    characterNameLabel.text = loadout.selectedCharacter?.ToUpper() ?? "CRIMSON";
-                
-                if (usernameLabel != null)
-                    usernameLabel.text = loadout.selectedCharacter?.ToUpper() ?? "CRIMSON";
-                
-                if (levelLabel != null)
-                    levelLabel.text = $"{loadout.level}";
-                
+                // Level + XP
+                if (levelLabel != null) levelLabel.text = loadout.level.ToString();
                 UpdateXPBar(loadout.xp, loadout.level);
                 
+                // Weapons
                 if (primaryWeaponLabel != null)
                 {
-                    string primaryId = loadout.primaryWeapon?.weaponId ?? "talon_ar";
-                    string primarySkinId = loadout.primaryWeapon?.skinId ?? "default";
-                    primaryWeaponLabel.text = GetWeaponDisplayName(primaryId);
-                    UpdateHomeWeaponIcon(primaryWeaponIconHome, primaryId, primarySkinId);
+                    string wName = loadout.primaryWeapon?.weaponId ?? "talon_ar";
+                    primaryWeaponLabel.text = wName.ToUpper();
+                    string wSkin = loadout.primaryWeapon?.skinId ?? "default";
+                    UpdateHomeWeaponIcon(primaryWeaponIconHome, wName, wSkin);
                 }
-                
                 if (secondaryWeaponLabel != null)
                 {
-                    string secondaryId = loadout.secondaryWeapon?.weaponId ?? "bolt";
-                    string secondarySkinId = loadout.secondaryWeapon?.skinId ?? "default";
-                    secondaryWeaponLabel.text = GetWeaponDisplayName(secondaryId);
-                    UpdateHomeWeaponIcon(secondaryWeaponIconHome, secondaryId, secondarySkinId);
+                    string wName = loadout.secondaryWeapon?.weaponId ?? "bolt";
+                    secondaryWeaponLabel.text = wName.ToUpper();
+                    string wSkin = loadout.secondaryWeapon?.skinId ?? "default";
+                    UpdateHomeWeaponIcon(secondaryWeaponIconHome, wName, wSkin);
                 }
                 
-                // Update knife icon
+                // Knife
                 {
                     string knifeSkinId = loadout.knifeSkin?.skinId;
                     if (string.IsNullOrEmpty(knifeSkinId)) knifeSkinId = "default";
@@ -855,6 +923,12 @@ namespace ArtisansGuns.UI
                         knifeWeaponLabelHome.text = knifeSkinId.ToUpper();
                     UpdateHomeKnifeIcon(knifeWeaponIconHome, knifeSkinId);
                 }
+
+                // Hat
+                UpdateHatSlot(loadout.selectedHat);
+                
+                // Update ability slots in loadout display
+                UpdateAbilitySlots(loadout.ability1, loadout.ability2, loadout.ultimate);
                 
                 // Update character icon in lobby PlayerCard
                 UpdateCharacterIcon(loadout.selectedCharacter);
@@ -888,11 +962,87 @@ namespace ArtisansGuns.UI
                     knifeWeaponLabelHome.text = "DEFAULT";
                 UpdateHomeKnifeIcon(knifeWeaponIconHome, "default");
                     
+                // Hide hat slot on defaults
+                UpdateHatSlot("none");
+                
                 // Update character icon with default
                 UpdateCharacterIcon("crimson");
             }
         }
         
+        private void UpdateHatSlot(string hatId)
+        {
+            var root = uiDocument?.rootVisualElement;
+            if (root == null) return;
+
+            var hatSlot = root.Q<VisualElement>("HatSlot");
+            if (hatSlot == null) return;
+
+            var hatIcon = hatSlot.Q<VisualElement>(className: "equipped-hat-icon");
+            var hatLabel = root.Q<Label>("HatLabel");
+
+            if (string.IsNullOrEmpty(hatId) || hatId == "none")
+            {
+                if (hatIcon != null) hatIcon.style.backgroundImage = StyleKeyword.None;
+                if (hatLabel != null) hatLabel.text = "NO HAT";
+                return;
+            }
+
+            var hat = HatDefinition.GetHatById(hatId);
+            if (hat == null)
+            {
+                if (hatIcon != null) hatIcon.style.backgroundImage = StyleKeyword.None;
+                if (hatLabel != null) hatLabel.text = "NO HAT";
+                return;
+            }
+
+            if (hatIcon != null)
+            {
+                var tex = Resources.Load<Texture2D>(hat.iconPath);
+                if (tex != null)
+                    hatIcon.style.backgroundImage = new StyleBackground(tex);
+            }
+
+            if (hatLabel != null)
+                hatLabel.text = hat.displayName;
+        }
+
+        private void UpdateAbilitySlots(string ability1Id, string ability2Id, string ultimateId)
+        {
+            var root = uiDocument?.rootVisualElement;
+            if (root == null) return;
+
+            // Ultimate is selectable — use loadout value
+            string ult = ultimateId;
+            var ultCfg = ArtisansGuns.Abilities.AbilityRegistry.Get(ult);
+
+            // Update home screen ultimate circle
+            var homeUltIcon = root.Q<VisualElement>("HomeUltimateIcon");
+            var homeUltLabel = root.Q<Label>("HomeUltimateLabel");
+            if (ultCfg != null)
+            {
+                if (homeUltIcon != null && ultCfg.icon != null)
+                    homeUltIcon.style.backgroundImage = new StyleBackground(ultCfg.icon);
+                if (homeUltLabel != null)
+                    homeUltLabel.text = ultCfg.abilityName.ToUpper();
+            }
+        }
+
+        private void UpdateSingleAbilitySlot(VisualElement root, string iconName, string labelName, string abilityId)
+        {
+            var cfg = ArtisansGuns.Abilities.AbilityRegistry.Get(abilityId);
+            var icon = root.Q<VisualElement>(iconName);
+            var label = root.Q<Label>(labelName);
+
+            if (cfg != null)
+            {
+                if (icon != null && cfg.icon != null)
+                    icon.style.backgroundImage = new StyleBackground(cfg.icon);
+                if (label != null)
+                    label.text = cfg.abilityName;
+            }
+        }
+
         /// <summary>
         /// Update the character icon in the lobby PlayerCard - same as agent cards but bigger
         /// </summary>
@@ -961,28 +1111,37 @@ namespace ArtisansGuns.UI
         private void UpdateCharacterIcon(string selectedCharacter)
         {
             if (characterPreview == null) return;
-            
-            // Clear existing content
-            characterPreview.Clear();
-            
-            // Get agent data
-            var agent = AgentDefinition.GetAgentById(selectedCharacter?.ToLower() ?? "crimson");
-            if (agent != null)
+
+            // Update agent name on the card banner
+            var cardNameLabel = uiDocument?.rootVisualElement?.Q<Label>("CardAgentName");
+            if (cardNameLabel != null)
+                cardNameLabel.text = (selectedCharacter ?? "CRIMSON").ToUpper();
+
+            // Display the RenderTexture from the 3D preview camera
+            if (characterRenderTexture != null)
             {
-                // Debug.Log($"ðŸ” [LobbyUI] Updating character icon for: {agent.displayName}, iconPath: {agent.iconPath}");
-                var iconTexture = Resources.Load<Texture2D>(agent.iconPath);
-                
-                if (iconTexture != null)
+                characterPreview.style.backgroundImage = Background.FromRenderTexture(characterRenderTexture);
+            }
+
+            // Tell the 3D preview to update its model + weapon
+            if (lobbyCharacterPreview != null)
+            {
+                string charId = selectedCharacter?.ToLower() ?? "crimson";
+                string weaponId = "talon_ar";
+                string hatId = "none";
+
+                if (LoadoutManager.Instance != null && LoadoutManager.Instance.IsInitialized())
                 {
-                    // Set the icon directly on the characterPreview element (card center)
-                    characterPreview.style.backgroundImage = new StyleBackground(iconTexture);
-                    characterPreview.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
-                    characterPreview.style.position = Position.Absolute;
-                    characterPreview.style.top = 0;
-                    characterPreview.style.left = 0;
-                    characterPreview.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
-                    characterPreview.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
+                    var loadout = LoadoutManager.Instance.GetLoadout();
+                    string skinId = loadout.primaryWeapon?.skinId;
+                    // Use skin config if a non-default skin is equipped (same logic as PlayerSetup)
+                    weaponId = (!string.IsNullOrEmpty(skinId) && skinId != "default")
+                        ? skinId
+                        : loadout.primaryWeapon?.weaponId ?? "talon_ar";
+                    hatId = loadout.selectedHat ?? "none";
                 }
+
+                lobbyCharacterPreview.Refresh(charId, weaponId, hatId);
             }
         }
 
@@ -1124,13 +1283,13 @@ namespace ArtisansGuns.UI
         }
         
         /// <summary>
-        /// XP curve: per-level cost N→N+1 = N*(100+2N).
-        /// Cumulative: totalXpForLevel(L) = 50*L*(L-1) + L*(L-1)*(2L-1)/3.
+        /// XP curve: per-level cost N→N+1 = 30 * N*(100+2N).
+        /// Cumulative: totalXpForLevel(L) = 30 * [50*L*(L-1) + L*(L-1)*(2L-1)/3].
         /// </summary>
         private static int TotalXpForLevel(int level)
         {
             int L = level;
-            return Mathf.RoundToInt(50f * L * (L - 1) + L * (L - 1) * (2f * L - 1) / 3f);
+            return Mathf.RoundToInt(30f * (50f * L * (L - 1) + L * (L - 1) * (2f * L - 1) / 3f));
         }
         
         private void UpdateXPBar(int totalXp, int level)
@@ -1145,7 +1304,7 @@ namespace ArtisansGuns.UI
                 xpBarFill.style.width = new StyleLength(new Length(pct * 100f, LengthUnit.Percent));
             
             if (xpLabel != null)
-                xpLabel.text = $"{xpInLevel}/{xpNeeded} XP";
+                xpLabel.text = $"{xpInLevel}/{xpNeeded} {T("XP")}";
         }
 
         private void UpdateCharacterSelection()
@@ -1323,7 +1482,7 @@ namespace ArtisansGuns.UI
 
             if (publicRooms.Count == 0)
             {
-                var emptyLabel = new Label("No rooms available. Create one!");
+                var emptyLabel = new Label(T("No rooms available. Create one!"));
                 emptyLabel.style.color = new StyleColor(new Color(0.6f, 0.7f, 0.8f, 0.6f));
                 emptyLabel.style.fontSize = 16;
                 emptyLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
@@ -1357,23 +1516,30 @@ namespace ArtisansGuns.UI
                 mapName = mapProperty.PropertyValue.ToString();
             }
 
-            var roomDetails = new Label($"{session.PlayerCount}/{session.MaxPlayers} Players â€¢ {mapName}");
+            var roomDetails = new Label($"{session.PlayerCount}/{session.MaxPlayers} {T("Players")} • {mapName}");
             roomDetails.AddToClassList("room-players");
             roomInfo.Add(roomDetails);
 
             roomItem.Add(roomInfo);
 
-            var joinButton = new Button(() => OnJoinRoom(session.Name)) { text = "JOIN" };
-            joinButton.AddToClassList("room-join-button");
-            
-            // Disable join if room is full
-            if (session.PlayerCount >= session.MaxPlayers)
+            // Status label instead of button
+            bool isFull = session.PlayerCount >= session.MaxPlayers;
+            var statusLabel = new Label(isFull ? "FULL" : "JOIN â–¶");
+            statusLabel.AddToClassList("room-join-label");
+            if (isFull)
+                statusLabel.AddToClassList("room-join-full");
+            roomItem.Add(statusLabel);
+
+            // Make the entire card clickable
+            if (!isFull)
             {
-                joinButton.SetEnabled(false);
-                joinButton.text = "FULL";
+                roomItem.RegisterCallback<ClickEvent>(evt => OnJoinRoom(session.Name));
+                roomItem.AddToClassList("room-item-clickable");
             }
-            
-            roomItem.Add(joinButton);
+            else
+            {
+                roomItem.AddToClassList("room-item-full");
+            }
 
             return roomItem;
         }
@@ -1383,7 +1549,7 @@ namespace ArtisansGuns.UI
             // Debug.Log($"Joining room: {roomName}");
             
             // Show loading spinner
-            ShowLoading("JOINING ROOM...", "CONNECTING TO SERVER");
+            ShowLoading(T("JOINING ROOM..."), T("CONNECTING TO SERVER"));
             
             if (NetworkManager.Instance != null)
             {
@@ -1414,26 +1580,53 @@ namespace ArtisansGuns.UI
 
         private async void OnQuickPlayClicked()
         {
-            ShowLoading("SEARCHING MATCH...", "CONNECTING");
+            // Block if backend data hasn't loaded yet
+            if (LoadoutManager.Instance == null || !LoadoutManager.Instance.IsInitialized())
+            {
+                ShowLoading(T("LOADING..."), T("WAITING FOR SERVER DATA"));
+                // Give it a few seconds to load
+                int waitAttempts = 0;
+                while ((LoadoutManager.Instance == null || !LoadoutManager.Instance.IsInitialized()) && waitAttempts < 30)
+                {
+                    await System.Threading.Tasks.Task.Delay(200);
+                    waitAttempts++;
+                }
+                if (LoadoutManager.Instance == null || !LoadoutManager.Instance.IsInitialized())
+                {
+                    HideLoading();
+                    return;
+                }
+            }
+
+            ShowLoading(T("SEARCHING MATCH..."), T("CONNECTING"));
             
             if (NetworkManager.Instance != null)
             {
-                // Wait for network to be ready
+                // Wait for network to be ready — actively re-initialize if stale
                 if (!NetworkManager.Instance.IsNetworkReady())
                 {
-                    ShowLoading("CONNECTING...", "PLEASE WAIT");
+                    ShowLoading(T("CONNECTING..."), T("PLEASE WAIT"));
+                    try { await NetworkManager.Instance.InitializeNetworking(); }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogWarning($"[Lobby] Network re-init failed: {ex.Message}");
+                    }
+
+                    // Brief wait for ready flag
                     int attempts = 0;
-                    while (!NetworkManager.Instance.IsNetworkReady() && attempts < 50)
+                    while (!NetworkManager.Instance.IsNetworkReady() && attempts < 30)
                     {
                         await System.Threading.Tasks.Task.Delay(100);
                         attempts++;
                     }
                     if (!NetworkManager.Instance.IsNetworkReady())
                     {
+                        ShowLoading(T("CONNECTION FAILED"), T("TAP TO RETRY"));
+                        await System.Threading.Tasks.Task.Delay(2000);
                         HideLoading();
                         return;
                     }
-                    ShowLoading("SEARCHING MATCH...", "CONNECTING");
+                    ShowLoading(T("SEARCHING MATCH..."), T("CONNECTING"));
                 }
 
                 bool success = await NetworkManager.Instance.QuickPlay();
@@ -1467,6 +1660,7 @@ namespace ArtisansGuns.UI
             agentsContent?.AddToClassList("hidden");
             shopContent?.AddToClassList("hidden");
             hatsContent?.AddToClassList("hidden");
+            abilitiesContent?.AddToClassList("hidden");
             roomContent?.AddToClassList("hidden");
             
             // Disable tab controllers when switching away
@@ -1485,6 +1679,10 @@ namespace ArtisansGuns.UI
             if (hatsTabController != null && tabName != "hats")
             {
                 hatsTabController.enabled = false;
+            }
+            if (abilitiesTabController != null && tabName != "abilities")
+            {
+                abilitiesTabController.enabled = false;
             }
 
             // Update header button active states
@@ -1530,6 +1728,13 @@ namespace ArtisansGuns.UI
                         hatsTabController.enabled = true;
                     }
                     break;
+                case "abilities":
+                    abilitiesContent?.RemoveFromClassList("hidden");
+                    if (abilitiesTabController != null)
+                    {
+                        abilitiesTabController.enabled = true;
+                    }
+                    break;
                 case "room":
                     roomContent?.RemoveFromClassList("hidden");
                     RefreshRoomPlayers();
@@ -1545,6 +1750,7 @@ namespace ArtisansGuns.UI
             charactersButton?.RemoveFromClassList("side-nav-btn-active");
             shopButton?.RemoveFromClassList("side-nav-btn-active");
             hatsButton?.RemoveFromClassList("side-nav-btn-active");
+            abilitiesButton?.RemoveFromClassList("side-nav-btn-active");
             
             // Apply active state to the selected tab's button
             switch (activeTab)
@@ -1565,6 +1771,9 @@ namespace ArtisansGuns.UI
                     break;
                 case "hats":
                     hatsButton?.AddToClassList("side-nav-btn-active");
+                    break;
+                case "abilities":
+                    abilitiesButton?.AddToClassList("side-nav-btn-active");
                     break;
             }
         }
@@ -1624,7 +1833,7 @@ namespace ArtisansGuns.UI
         private void HandleConnectionFailed(string error)
         {
             if (loadingMessage != null)
-                loadingMessage.text = "CONNECTION FAILED";
+                loadingMessage.text = T("CONNECTION FAILED");
             if (loadingSubtext != null)
                 loadingSubtext.text = error;
             
@@ -1636,7 +1845,7 @@ namespace ArtisansGuns.UI
         private void OnRetryConnectionClicked()
         {
             retryConnectionButton?.AddToClassList("hidden");
-            ShowLoading("RECONNECTING...", "CONNECTING TO SERVER");
+            ShowLoading(T("RECONNECTING..."), T("CONNECTING TO SERVER"));
             AuthManager.Instance?.RetryConnection();
         }
 
@@ -1684,13 +1893,19 @@ namespace ArtisansGuns.UI
             if (confirmCreateRoomButton != null)
                 confirmCreateRoomButton.SetEnabled(false);
             
-            // Wait for network to be ready
+            // Wait for network to be ready — actively re-initialize if stale
             if (NetworkManager.Instance != null && !NetworkManager.Instance.IsNetworkReady())
             {
-                ShowLoading("CONNECTING...", "PLEASE WAIT");
+                ShowLoading(T("CONNECTING..."), T("PLEASE WAIT"));
                 
+                try { await NetworkManager.Instance.InitializeNetworking(); }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[Lobby] Network re-init failed: {ex.Message}");
+                }
+
                 int attempts = 0;
-                while (!NetworkManager.Instance.IsNetworkReady() && attempts < 50)
+                while (!NetworkManager.Instance.IsNetworkReady() && attempts < 30)
                 {
                     await System.Threading.Tasks.Task.Delay(100);
                     attempts++;
@@ -1698,6 +1913,8 @@ namespace ArtisansGuns.UI
                 
                 if (!NetworkManager.Instance.IsNetworkReady())
                 {
+                    ShowLoading(T("CONNECTION FAILED"), T("TAP TO RETRY"));
+                    await System.Threading.Tasks.Task.Delay(2000);
                     HideLoading();
                     if (confirmCreateRoomButton != null)
                         confirmCreateRoomButton.SetEnabled(true);
@@ -1706,7 +1923,7 @@ namespace ArtisansGuns.UI
             }
             
             HideCreateRoom();
-            ShowLoading("CREATING PRIVATE ROOM...", "GENERATING CODE");
+            ShowLoading(T("CREATING PRIVATE ROOM..."), T("GENERATING CODE"));
 
             if (NetworkManager.Instance != null)
             {
@@ -1715,7 +1932,7 @@ namespace ArtisansGuns.UI
                 if (code != null)
                 {
                     // Show the code briefly before scene transitions
-                    ShowLoading("PRIVATE ROOM CREATED", $"CODE: {code}");
+                    ShowLoading(T("PRIVATE ROOM CREATED"), $"{T("CODE:")}: {code}");
                 }
                 else
                 {
@@ -1755,7 +1972,7 @@ namespace ArtisansGuns.UI
                 joinPrivateRoomButton.SetEnabled(false);
 
             HideCreateRoom();
-            ShowLoading("JOINING...", $"CODE: {code}");
+            ShowLoading(T("JOINING..."), $"{T("CODE:")}: {code}");
 
             if (NetworkManager.Instance != null)
             {
@@ -1787,9 +2004,28 @@ namespace ArtisansGuns.UI
         /// </summary>
         private void HandleGuestReadyInLobby(AuthManager.UserData user)
         {
+            // Don't HideLoading() here — wait for LoadoutManager.OnLoadoutUpdated
+            // which only fires after backend data is fully loaded.
+            // Just update the status text so the user sees progress.
+            if (!initialLoadComplete)
+            {
+                ShowLoading(T("LOADING DATA..."), T("SESSION READY"));
+            }
             UpdateSaveProgressButtonVisibility();
             settingsUIController?.UpdateLogoutButtonVisibility();
-            UpdateCharacterDisplay();
+            
+            if (LoadoutManager.Instance != null)
+            {
+                LoadoutManager.Instance.RefreshLoadout(success =>
+                {
+                    UpdateCharacterDisplay();
+                    UpdateCurrencyDisplay();
+                });
+            }
+            else
+            {
+                UpdateCharacterDisplay();
+            }
         }
 
         /// <summary>
@@ -1798,13 +2034,31 @@ namespace ArtisansGuns.UI
         /// </summary>
         private void HandleLoginSuccessInLobby(AuthManager.UserData user)
         {
+            // Don't HideLoading() here — wait for LoadoutManager.OnLoadoutUpdated.
+            if (!initialLoadComplete)
+            {
+                ShowLoading(T("LOADING DATA..."), T("SESSION READY"));
+            }
             // Close any sign-up overlays that might have been opened during the
             // brief window before auth mode was confirmed
             HideCharacterNameOverlay();
             HideSaveProgressOverlay();
             UpdateSaveProgressButtonVisibility();
             settingsUIController?.UpdateLogoutButtonVisibility();
-            UpdateCharacterDisplay();
+            
+            // Force refresh loadout from backend for the new account
+            if (LoadoutManager.Instance != null)
+            {
+                LoadoutManager.Instance.RefreshLoadout(success =>
+                {
+                    UpdateCharacterDisplay();
+                    UpdateCurrencyDisplay();
+                });
+            }
+            else
+            {
+                UpdateCharacterDisplay();
+            }
         }
 
         private void UpdateSaveProgressButtonVisibility()
@@ -1881,7 +2135,7 @@ namespace ArtisansGuns.UI
         {
             if (GoogleAuthService.Instance == null)
             {
-                ShowSaveProgressError("Google Sign-In not available");
+                ShowSaveProgressError(T("Google Sign-In not available"));
                 return;
             }
             if (googleSignInButton != null) googleSignInButton.SetEnabled(false);
@@ -1936,17 +2190,17 @@ namespace ArtisansGuns.UI
 
             if (string.IsNullOrEmpty(characterName) || characterName.Length < 3 || characterName.Length > 18)
             {
-                ShowCharNameError("Name must be 3-18 characters");
+                ShowCharNameError(T("Name must be 3-18 characters"));
                 return;
             }
             if (!System.Text.RegularExpressions.Regex.IsMatch(characterName, @"^[a-zA-Z0-9\s]+$"))
             {
-                ShowCharNameError("Only letters, numbers and spaces allowed");
+                ShowCharNameError(T("Only letters, numbers and spaces allowed"));
                 return;
             }
             if (string.IsNullOrEmpty(pendingGoogleIdToken))
             {
-                ShowCharNameError("Google sign-in expired. Please try again.");
+                ShowCharNameError(T("Google sign-in expired. Please try again."));
                 HideCharacterNameOverlay();
                 return;
             }
@@ -1997,7 +2251,7 @@ namespace ArtisansGuns.UI
         {
             if (GoogleAuthService.Instance == null)
             {
-                ShowLoginError("Google Sign-In not available");
+                ShowLoginError(T("Google Sign-In not available"));
                 return;
             }
             if (confirmLoginButton != null) confirmLoginButton.SetEnabled(false);
@@ -2054,7 +2308,22 @@ namespace ArtisansGuns.UI
 
             UpdateSaveProgressButtonVisibility();
             settingsUIController?.UpdateLogoutButtonVisibility();
-            UpdateCharacterDisplay();
+            
+            // Force refresh loadout from backend for the logged-in account
+            if (LoadoutManager.Instance != null)
+            {
+                LoadoutManager.Instance.RefreshLoadout(success =>
+                {
+                    UpdateCharacterDisplay();
+                    UpdateCurrencyDisplay();
+                    // Re-populate active tab
+                    SetActiveTab("lobby");
+                });
+            }
+            else
+            {
+                UpdateCharacterDisplay();
+            }
         }
 
         private void OnGoogleLoginFailed(string error)
@@ -2089,6 +2358,143 @@ namespace ArtisansGuns.UI
             {
                 loginError.text = message;
                 loginError.style.display = DisplayStyle.Flex;
+            }
+        }
+
+        // ===================================
+        // Localization
+        // ===================================
+        private void LocalizeUI()
+        {
+            var root = uiDocument?.rootVisualElement;
+            if (root == null) return;
+
+            // Navigation buttons
+            var weaponsBtnLabel = weaponsButton?.Q<Label>();
+            if (weaponsBtnLabel != null) weaponsBtnLabel.text = T("WEAPONS");
+            var agentsBtnLabel = charactersButton?.Q<Label>();
+            if (agentsBtnLabel != null) agentsBtnLabel.text = "AGENTES";
+            var shopBtnLabel = shopButton?.Q<Label>();
+            if (shopBtnLabel != null) shopBtnLabel.text = T("SHOP");
+            var hatsBtnLabel = hatsButton?.Q<Label>();
+            if (hatsBtnLabel != null) hatsBtnLabel.text = T("HATS");
+            var abilitiesBtnLabel = abilitiesButton?.Q<Label>();
+            if (abilitiesBtnLabel != null) abilitiesBtnLabel.text = "ULTIMATE";
+
+            // Logo / header
+            if (logoLabel != null)
+                logoLabel.text = isInRoom ? T("ROOM") : T("LOBBY");
+
+            // Lobby tab buttons
+            var quickPlayLabel = quickPlayButton?.Q<Label>();
+            if (quickPlayLabel != null) quickPlayLabel.text = T("START GAME");
+            var createRoomLabel = createRoomButton?.Q<Label>();
+            if (createRoomLabel != null) createRoomLabel.text = T("CREATE / JOIN");
+            var refreshLabel = refreshButton?.Q<Label>();
+            if (refreshLabel != null) refreshLabel.text = T("ROOMS");
+
+            // Gamemode
+            if (gameModeLabel != null && !isInRoom)
+                gameModeLabel.text = T("TEAM DEATHMATCH");
+            if (gamemodeLabel != null)
+                gamemodeLabel.text = T("TEAM DEATHMATCH");
+
+            // Room tab
+            var teamATitle = root.Q<Label>("TeamATitle");
+            if (teamATitle != null) teamATitle.text = T("TEAM ALPHA");
+            var teamBTitle = root.Q<Label>("TeamBTitle");
+            if (teamBTitle != null) teamBTitle.text = T("TEAM BRAVO");
+            if (startGameButton != null && isInRoom) startGameButton.text = T("START GAME");
+            if (readyButton != null && isInRoom) readyButton.text = T("READY");
+            var waitingLabel = waitingMessage?.Q<Label>();
+            if (waitingLabel != null) waitingLabel.text = T("WAITING FOR MISSION START...");
+
+            // Countdown overlay
+            var countdownTitle = root.Q<Label>("CountdownTitle");
+            if (countdownTitle != null) countdownTitle.text = T("GAME STARTING");
+            var countdownMsg = root.Q<Label>("CountdownMessage");
+            if (countdownMsg != null) countdownMsg.text = T("PREPARE FOR BATTLE");
+
+            // Character select overlay
+            var charSelectTitle = root.Q<Label>("CharSelectTitle");
+            if (charSelectTitle != null) charSelectTitle.text = T("SELECT AGENT");
+
+            // Create room overlay labels
+            var createRoomTitle = root.Q<Label>("CreateRoomTitle");
+            if (createRoomTitle != null) createRoomTitle.text = T("CUSTOM GAME");
+            var createRoomSubtitle = root.Q<Label>("CreateRoomSubtitle");
+            if (createRoomSubtitle != null) createRoomSubtitle.text = T("CREATE A ROOM");
+            var gamemodeSettingLabel = root.Q<Label>("GamemodeSettingLabel");
+            if (gamemodeSettingLabel != null) gamemodeSettingLabel.text = T("GAMEMODE");
+            var mapSettingLabel = root.Q<Label>("MapSettingLabel");
+            if (mapSettingLabel != null) mapSettingLabel.text = T("MAP");
+            var confirmCreateLabel = confirmCreateRoomButton?.Q<Label>();
+            if (confirmCreateLabel != null) confirmCreateLabel.text = T("CREATE ROOM");
+            var joinCodeTitle = root.Q<Label>("JoinCodeTitle");
+            if (joinCodeTitle != null) joinCodeTitle.text = T("JOIN WITH CODE");
+            var joinCodeHint = root.Q<Label>("JoinCodeHint");
+            if (joinCodeHint != null) joinCodeHint.text = T("Enter a room code to join any game");
+            var joinPrivateLabel = joinPrivateRoomButton?.Q<Label>();
+            if (joinPrivateLabel != null) joinPrivateLabel.text = T("JOIN");
+
+            // Room panel overlay
+            var roomPanelTitle = root.Q<Label>("RoomPanelTitle");
+            if (roomPanelTitle != null) roomPanelTitle.text = T("AVAILABLE ROOMS");
+
+            // Google promo / Save Progress overlay
+            var promoLabel = googlePromoButton?.Q<Label>();
+            if (promoLabel != null) promoLabel.text = T("GET STARTED");
+            var promoText = root.Q<Label>("GooglePromoText");
+            if (promoText != null) promoText.text = T("Sign up with Google & earn");
+            var saveProgressTitle = root.Q<Label>("SaveProgressTitle");
+            if (saveProgressTitle != null) saveProgressTitle.text = T("LINK YOUR ACCOUNT");
+            var saveProgressText = root.Q<Label>("SaveProgressText");
+            if (saveProgressText != null) saveProgressText.text = T("Sign up & earn");
+            var googleSignInLabel = googleSignInButton?.Q<Label>();
+            if (googleSignInLabel != null) googleSignInLabel.text = T("Sign up with Google");
+            var alreadyHaveLabel = root.Q<Label>("AlreadyHaveAccountLabel");
+            if (alreadyHaveLabel != null) alreadyHaveLabel.text = T("Already have an account?");
+            var loginInsteadLabel = loginInsteadButton?.Q<Label>();
+            if (loginInsteadLabel != null) loginInsteadLabel.text = T("Sign in with Google");
+
+            // Character name overlay
+            var charNameTitle = root.Q<Label>("CharNameTitle");
+            if (charNameTitle != null) charNameTitle.text = T("CHOOSE YOUR NAME");
+            var charNameDesc = root.Q<Label>("CharNameDescription");
+            if (charNameDesc != null) charNameDesc.text = T("Choose a unique character name (3-18 characters).");
+            var confirmCharLabel = confirmCharNameButton?.Q<Label>();
+            if (confirmCharLabel != null) confirmCharLabel.text = T("CONFIRM");
+
+            // Google reward overlay
+            var rewardTitle = root.Q<Label>("GoogleRewardTitle");
+            if (rewardTitle != null) rewardTitle.text = T("ACCOUNT LINKED!");
+            var rewardSubtitle = root.Q<Label>("GoogleRewardSubtitle");
+            if (rewardSubtitle != null) rewardSubtitle.text = T("You earned a bonus reward");
+            var rewardCurrency = root.Q<Label>("GoogleRewardCurrency");
+            if (rewardCurrency != null) rewardCurrency.text = T("RIVAL COINS");
+            var claimLabel = claimRewardButton?.Q<Label>();
+            if (claimLabel != null) claimLabel.text = T("CLAIM");
+
+            // Login overlay
+            var loginTitle = root.Q<Label>("LoginTitle");
+            if (loginTitle != null) loginTitle.text = T("WELCOME BACK");
+            var loginDesc = root.Q<Label>("LoginDescription");
+            if (loginDesc != null) loginDesc.text = T("Log in to restore your saved progress, weapons, and agents.");
+            var loginWarning = root.Q<Label>("LoginWarning");
+            if (loginWarning != null) loginWarning.text = T("This will replace your current guest progress with your saved account.");
+            var confirmLoginLabel = confirmLoginButton?.Q<Label>();
+            if (confirmLoginLabel != null) confirmLoginLabel.text = T("Sign in with Google");
+
+            // Loading overlay
+            if (loadingMessage != null && string.IsNullOrEmpty(loadingMessage.text))
+                loadingMessage.text = T("CONNECTING...");
+
+            // Re-localize room info if in room
+            if (isInRoom)
+            {
+                if (roomIdLabel != null) roomIdLabel.text = $"{T("ROOM ID //")} {currentRoomName}";
+                if (gameModeLabel != null) gameModeLabel.text = $"{T("MODE //")} {T("TEAM DEATHMATCH")}";
+                if (maxPlayersLabel != null) maxPlayersLabel.text = $"{T("CAPACITY //")} 10";
             }
         }
 
@@ -2128,15 +2534,15 @@ namespace ArtisansGuns.UI
             }
             
             // Update header
-            if (logoLabel != null) logoLabel.text = "ROOM";
+            if (logoLabel != null) logoLabel.text = T("ROOM");
             exitButtonContainer?.RemoveFromClassList("hidden");
             playersCountLabel?.RemoveFromClassList("hidden");
             
             // Update room info
             if (mapHeaderLabel != null) mapHeaderLabel.text = currentMapName.ToUpper();
-            if (roomIdLabel != null) roomIdLabel.text = $"ROOM ID // {roomName}";
-            if (gameModeLabel != null) gameModeLabel.text = "MODE // DEATHMATCH";
-            if (maxPlayersLabel != null) maxPlayersLabel.text = "CAPACITY // 10";
+            if (roomIdLabel != null) roomIdLabel.text = $"{T("ROOM ID //")} {roomName}";
+            if (gameModeLabel != null) gameModeLabel.text = $"{T("MODE //")} {T("TEAM DEATHMATCH")}";
+            if (maxPlayersLabel != null) maxPlayersLabel.text = $"{T("CAPACITY //")} 10";
             
             // Load map image from Resources/UI folder
             if (mapImage != null)
@@ -2188,7 +2594,7 @@ namespace ArtisansGuns.UI
                 }
                 if (startGameButton != null)
                 {
-                    startGameButton.text = "START GAME";
+                    startGameButton.text = T("START GAME");
                     // Debug.Log("    âœ… StartGameButton text set to 'START GAME'");
                 }
                 waitingMessage?.AddToClassList("hidden");
@@ -2204,7 +2610,7 @@ namespace ArtisansGuns.UI
                 if (readyButton != null)
                 {
                     readyButton.RemoveFromClassList("hidden");
-                    readyButton.text = "READY";
+                    readyButton.text = T("READY");
                     // Debug.Log("    âœ… ReadyButton shown with text 'READY'");
                 }
                 waitingMessage?.AddToClassList("hidden");
@@ -2240,7 +2646,7 @@ namespace ArtisansGuns.UI
             // Leave room via NetworkManager
             if (NetworkManager.Instance != null)
             {
-                ShowLoading("LEAVING ROOM...", "DISCONNECTING");
+                    ShowLoading(T("LEAVING ROOM..."), T("DISCONNECTING"));
                 await NetworkManager.Instance.LeaveRoom();
                 HideLoading();
             }
@@ -2252,7 +2658,7 @@ namespace ArtisansGuns.UI
             playersInRoom.Clear();
             
             // Reset header to lobby state
-            if (logoLabel != null) logoLabel.text = "LOBBY";
+            if (logoLabel != null) logoLabel.text = T("LOBBY");
             exitButtonContainer?.AddToClassList("hidden");
             playersCountLabel?.AddToClassList("hidden");
             
@@ -2427,7 +2833,7 @@ namespace ArtisansGuns.UI
                     // âœ… Allow game to start even without opposite team (for testing/solo play)
                     // Host can always start the game if at least they are in the room
                     startGameButton.SetEnabled(true);
-                    startGameButton.text = "START GAME";
+                    startGameButton.text = T("START GAME");
                     
                     // Optional: Show different message if no opposite team
                     int hostTeam = localPlayer.Team;
@@ -2470,7 +2876,7 @@ namespace ArtisansGuns.UI
             }
             
             // Update button text to reflect current state
-            readyButton.text = newReadyState ? "READY ✓" : "READY";
+            readyButton.text = newReadyState ? T("READY ✓") : T("READY");
             
             // Update cache immediately so UI shows the change right away
             localPlayerData.UpdatePlayerCache();
@@ -2499,6 +2905,17 @@ namespace ArtisansGuns.UI
             
             int countdownValue = gameState.CountdownValue;
             
+            // Play countdown sounds on value change
+            if (countdownValue != lastCountdownValue && countdownValue >= 0)
+            {
+                lastCountdownValue = countdownValue;
+                PlayCountdownSound(countdownValue);
+            }
+            else if (countdownValue < 0)
+            {
+                lastCountdownValue = -1;
+            }
+
             if (countdownValue >= 0)
             {
                 // Show countdown overlay with networked value
@@ -2528,23 +2945,57 @@ namespace ArtisansGuns.UI
                 countdownOverlay.AddToClassList("hidden");
             }
         }
+
+        /// <summary>
+        /// Plays countdown tick sounds (3, 2, 1) with rising pitch, and the
+        /// "GameStarted" sound on 0 (GO!).
+        /// </summary>
+        private void PlayCountdownSound(int value)
+        {
+            if (startingGameClip == null)
+                startingGameClip = Resources.Load<AudioClip>("Sounds/StartingGame");
+            if (gameStartedClip == null)
+                gameStartedClip = Resources.Load<AudioClip>("Sounds/GameStarted");
+
+            Debug.Log($"[Countdown] PlayCountdownSound({value}) — StartingGame={startingGameClip != null}, GameStarted={gameStartedClip != null}, SoundManager={ArtisansGuns.Managers.SoundManager.Instance != null}");
+
+            var sm = ArtisansGuns.Managers.SoundManager.Instance;
+            if (sm == null) return;
+
+            if (value > 0)
+            {
+                // 3 → pitch 0.8, 2 → pitch 1.0, 1 → pitch 1.2
+                float pitch = 0.8f + (3 - value) * 0.2f;
+                sm.PlaySFXWithPitch(startingGameClip, pitch);
+            }
+            else // value == 0 → GO!
+            {
+                sm.PlaySFXWithPitch(gameStartedClip, 1f);
+            }
+        }
         
         private void OnStartGameClicked()
         {
             if (!isHost)
             {
-                // Debug.LogWarning("âš ï¸ Only host can start the game!");
+                Debug.LogWarning($"[OnStartGameClicked] BLOCKED: isHost={isHost}, isInRoom={isInRoom}");
                 return;
             }
             
-            // Validate: Must have at least 1 ready player on the opposite team
-            // âœ… Solo mode enabled - no validation needed for opposite team
-            // Debug.Log("ðŸŽ® Starting game via NetworkManager (solo mode enabled)...");
-            
             // Call NetworkManager to start game (it will handle GameStateManager countdown)
+            if (LoadoutManager.Instance == null || !LoadoutManager.Instance.IsInitialized())
+            {
+                Debug.LogWarning("[Lobby] Cannot start game - backend data not loaded yet");
+                return;
+            }
             if (NetworkManager.Instance != null)
             {
+                Debug.Log("[OnStartGameClicked] Calling NetworkManager.StartGame()");
                 NetworkManager.Instance.StartGame();
+            }
+            else
+            {
+                Debug.LogWarning("[OnStartGameClicked] BLOCKED: NetworkManager.Instance is null");
             }
         }
     
@@ -2778,7 +3229,7 @@ namespace ArtisansGuns.UI
             var weaponsHeader = root.Q<Label>("WeaponsHeader");
             if (weaponsHeader != null)
             {
-                weaponsHeader.text = "WEAPONS";
+                weaponsHeader.text = T("WEAPONS");
                 weaponsHeader.style.fontSize = 8;
                 weaponsHeader.style.color = new Color(0.5f, 0.5f, 0.55f, 1f);
                 weaponsHeader.style.marginBottom = 4;
@@ -2812,7 +3263,7 @@ namespace ArtisansGuns.UI
             var levelLabel = root.Q<Label>("Level");
             if (levelLabel != null)
             {
-                levelLabel.text = $"LVL {player.Level}";
+                levelLabel.text = $"{T("LVL")} {player.Level}";
                 levelLabel.style.fontSize = 10;
                 levelLabel.style.color = player.Team == 0
                     ? new Color(1f, 0.37f, 0.20f, 1f)
@@ -2842,7 +3293,7 @@ namespace ArtisansGuns.UI
             
             if (player.IsHost)
             {
-                var hostLabel = new Label("HOST");
+                var hostLabel = new Label(T("HOST"));
                 hostLabel.style.color = new Color(1f, 0.5f, 0f, 1f);
                 container.Add(hostLabel);
             }

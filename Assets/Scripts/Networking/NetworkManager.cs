@@ -85,8 +85,147 @@ namespace ArtisansGuns.Networking
         }
 
         // ===================================
+        // APP LIFECYCLE (screen lock / alt-tab)
+        // ===================================
+
+        private bool _wasPaused = false;
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                _wasPaused = true;
+                return;
+            }
+
+            // Resuming from pause (screen unlock)
+            if (!_wasPaused) return;
+            _wasPaused = false;
+
+            HandleAppResume();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            // On Android, OnApplicationPause is the primary callback.
+            // OnApplicationFocus supplements it for alt-tab / overlay scenarios.
+            if (hasFocus && _wasPaused)
+            {
+                _wasPaused = false;
+                HandleAppResume();
+            }
+        }
+
+        private async void HandleAppResume()
+        {
+            // Give Unity a frame to stabilise
+            await Task.Delay(500);
+
+            bool runnerAlive = runner != null && runner.IsRunning;
+            string currentScene = SceneManager.GetActiveScene().name;
+            bool isGameScene = currentScene == "Sandbox" || currentScene.StartsWith("Map");
+
+            Debug.Log($"[NetworkManager] App resumed — scene={currentScene}, runnerAlive={runnerAlive}, isGameScene={isGameScene}");
+
+            if (!runnerAlive)
+            {
+                // Always dismiss a stuck loading screen when runner is dead
+                if (PreWarmManager.Instance != null && PreWarmManager.Instance.IsLoading)
+                {
+                    Debug.LogWarning("[NetworkManager] Runner dead + loading screen active — dismissing loading");
+                    PreWarmManager.Instance.HideLoading();
+                }
+
+                if (isGameScene)
+                {
+                    // Runner died while loading/in-game — force back to lobby
+                    Debug.LogWarning($"[NetworkManager] Runner lost during pause in {currentScene} — returning to LobbyScene");
+                    isNetworkReady = false;
+                    SceneManager.LoadScene("LobbyScene");
+
+                    // Re-initialize networking after scene load settles
+                    await Task.Delay(1500);
+                    try { await InitializeNetworking(); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[NetworkManager] Re-init after pause failed: {ex.Message}");
+                    }
+                }
+                else if (currentScene == "LobbyScene")
+                {
+                    // Runner died while in lobby — silently re-initialize
+                    Debug.LogWarning("[NetworkManager] Runner lost during pause in LobbyScene — re-initializing");
+                    try { await InitializeNetworking(); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[NetworkManager] Re-init after pause failed: {ex.Message}");
+                    }
+                }
+            }
+            else if (isGameScene)
+            {
+                // Runner alive + game scene — make sure local player is spawned
+                // (handles the case where scene loaded during background but spawn failed)
+                EnsureLocalPlayerSpawned();
+            }
+        }
+
+        // ===================================
         // PUBLIC API
         // ===================================
+
+        /// <summary>
+        /// Destroys the current runner (lobby or stale) and creates a brand-new
+        /// runner for starting a game session.  Fusion runners must not be reused
+        /// after Shutdown — this guarantees a fresh instance for every StartGame.
+        /// </summary>
+        private async Task<bool> PrepareRunnerForGame()
+        {
+            // Stop lobby polling — we're transitioning to a game
+            isPollingRooms = false;
+            if (pollCoroutine != null) { StopCoroutine(pollCoroutine); pollCoroutine = null; }
+
+            // Safety net: reset combo/kill streak before starting a new session
+            ArtisansGuns.Audio.ComboKillManager.Instance?.ResetForNewMatch();
+
+            // Tear down whatever runner exists (lobby runner or orphaned game runner)
+            if (runner != null)
+            {
+                try
+                {
+                    runner.RemoveCallbacks(this);
+                    if (!runner.IsShutdown)
+                        await runner.Shutdown(true, ShutdownReason.Ok);
+                }
+                catch { /* expected during rapid leave/join cycles */ }
+
+                if (runner != null && runner.gameObject != null)
+                    Destroy(runner.gameObject);
+                runner = null;
+
+                // Give Unity a frame to process the Destroy
+                await System.Threading.Tasks.Task.Delay(100);
+            }
+
+            // Create a completely fresh runner for the game session
+            if (networkRunnerPrefab == null)
+            {
+                Debug.LogError("[PrepareRunnerForGame] networkRunnerPrefab is null!");
+                return false;
+            }
+
+            runner = Instantiate(networkRunnerPrefab);
+            runner.name = "NetworkRunner_Game";
+            DontDestroyOnLoad(runner.gameObject);
+            runner.AddCallbacks(this);
+
+            // Spread async scene loading across more frames so individual frames
+            // stay short and Runner.Update() can send heartbeats.
+            Application.backgroundLoadingPriority = UnityEngine.ThreadPriority.Low;
+
+            Debug.Log("[PrepareRunnerForGame] Fresh runner created");
+            return true;
+        }
 
         /// <summary>
         /// Initialize Fusion and connect to lobby
@@ -215,7 +354,7 @@ namespace ArtisansGuns.Networking
         /// </summary>
         public async Task<bool> CreateRoom(string roomName, string mapName, bool isPrivate = false, string gamemode = "tdm")
         {
-            if (!isNetworkReady || runner == null)
+            if (!isNetworkReady)
             {
                 return false;
             }
@@ -233,30 +372,26 @@ namespace ArtisansGuns.Networking
             PlayerPrefs.SetInt("is_room_host", 1);
             PlayerPrefs.Save();
 
-            // CRITICAL: Stop polling IMMEDIATELY to prevent conflicts
-            isPollingRooms = false;
-            if (pollCoroutine != null)
-            {
-                StopCoroutine(pollCoroutine);
-                pollCoroutine = null;
-            }
-
-            // Wait a frame to ensure polling has stopped
-            await System.Threading.Tasks.Task.Delay(100);
-
             // Show loading screen before scene transition
             if (PreWarmManager.Instance != null)
                 PreWarmManager.Instance.ShowLoading();
 
-            var sceneManager = EnsureSceneManager(runner);
-            // .IO: go directly to Sandbox (game scene)
-            var gameSceneRef = GetSceneRef("Sandbox");
+            // CRITICAL: Create a fresh runner — Fusion runners must not be reused after Shutdown.
+            if (!await PrepareRunnerForGame())
+            {
+                PreWarmManager.Instance?.HideLoading();
+                return false;
+            }
 
+            var sceneManager = EnsureSceneManager(runner);
+
+            // Connect to Photon WITHOUT loading the game scene yet.
+            // This lets the Runner establish the connection and start sending
+            // heartbeats BEFORE the heavy scene load blocks the main thread.
             var args = new StartGameArgs()
             {
                 GameMode = GameMode.Shared,
                 SessionName = roomName,
-                Scene = gameSceneRef,
                 SceneManager = sceneManager,
                 PlayerCount = 10,
                 IsVisible = true, // Always visible so join-by-code works; private filtered in UI
@@ -288,6 +423,12 @@ namespace ArtisansGuns.Networking
                 PreWarmManager.Instance?.HideLoading();
                 return false;
             }
+
+            // Connection established — NOW load the game scene.
+            // Runner.Update() can keep sending heartbeats between async load frames.
+            var gameSceneRef = GetSceneRef("Sandbox");
+            Debug.Log($"[NetworkManager] Connection ready, loading Sandbox scene (SceneRef={gameSceneRef})");
+            runner.LoadScene(gameSceneRef);
             
             // Set host flag and store room data
             isHost = true;
@@ -304,11 +445,6 @@ namespace ArtisansGuns.Networking
         /// </summary>
         public async Task<bool> JoinRoom(string roomName)
         {
-            if (runner == null)
-            {
-                return false;
-            }
-
             // CRITICAL: Clear ALL stale data from previous sessions
             ResetSessionState();
 
@@ -320,22 +456,26 @@ namespace ArtisansGuns.Networking
             PlayerPrefs.SetInt("is_room_host", 0);
             PlayerPrefs.Save();
 
-            // Stop polling rooms
-            isPollingRooms = false;
-
             // Show loading screen before scene transition
             if (PreWarmManager.Instance != null)
                 PreWarmManager.Instance.ShowLoading();
 
-            var sceneManager = EnsureSceneManager(runner);
-            // .IO: go directly to Sandbox (game scene)
-            var gameSceneRef = GetSceneRef("Sandbox");
+            // CRITICAL: Create a fresh runner — Fusion runners must not be reused after Shutdown.
+            if (!await PrepareRunnerForGame())
+            {
+                PreWarmManager.Instance?.HideLoading();
+                return false;
+            }
 
+            var sceneManager = EnsureSceneManager(runner);
+
+            // Connect to Photon WITHOUT loading the game scene yet.
+            // This lets the Runner establish the connection and start sending
+            // heartbeats BEFORE the heavy scene load blocks the main thread.
             var args = new StartGameArgs()
             {
                 GameMode = GameMode.Shared,
                 SessionName = roomName,
-                Scene = gameSceneRef,
                 SceneManager = sceneManager
             };
             var result = await runner.StartGame(args);
@@ -356,6 +496,12 @@ namespace ArtisansGuns.Networking
                 PreWarmManager.Instance?.HideLoading();
                 return false;
             }
+
+            // Connection established — NOW load the game scene.
+            // Runner.Update() can keep sending heartbeats between async load frames.
+            var gameSceneRef = GetSceneRef("Sandbox");
+            Debug.Log($"[NetworkManager] Connection ready, loading Sandbox scene (SceneRef={gameSceneRef})");
+            runner.LoadScene(gameSceneRef);
 
             // Set state
             isHost = false;
@@ -470,75 +616,87 @@ namespace ArtisansGuns.Networking
             // Set flag to indicate this is a voluntary disconnection
             isLeavingRoom = true;
             
-            // Destroy stale GameStateManager to prevent stuck flags (CountdownStarted/GameInProgress)
-            if (GameStateManager.Instance != null)
-            {
-                Debug.Log("[NetworkManager] Destroying stale GameStateManager before leaving room");
-                var gsmGO = GameStateManager.Instance.gameObject;
-                GameStateManager.Instance = null;
-                Destroy(gsmGO);
-            }
+            // IMPORTANT: Do NOT destroy the GSM while the runner is still running!
+            // If we have StateAuthority on the GSM and destroy it, Fusion despawns it
+            // network-wide, killing the match for remaining players.
+            // Just clear the local reference — runner.Shutdown() handles cleanup locally,
+            // and Fusion transfers StateAuthority to remaining clients.
+            GameStateManager.Instance = null;
+            GameStateManager.Backup = default; // Clear backup — the leaving client shouldn't restore stale state
+            
+            // Reset combo/kill streak/ultimate state so it doesn't carry into the next session
+            ArtisansGuns.Audio.ComboKillManager.Instance?.ResetForNewMatch();
             
             // Clear the player cache when leaving the room
             PlayerNetworkData.ClearPlayerCache();
             
+            // Stop polling
+            isPollingRooms = false;
+            if (pollCoroutine != null) { StopCoroutine(pollCoroutine); pollCoroutine = null; }
+            
             try
             {
-                if (runner != null && runner.IsRunning)
-                { // Debug.Log("🚪 Leaving room...");
-                    
-                    // Clear ready status before leaving
-                    var localPlayerData = FindObjectsOfType<PlayerNetworkData>()
-                        .FirstOrDefault(pd => pd != null && pd.Object != null && pd.Object.HasInputAuthority);
-                    
-                    if (localPlayerData != null && localPlayerData.IsReady)
-                    { // Debug.Log("🔄 Clearing ready status before leaving...");
-                        if (localPlayerData.HasStateAuthority)
+                if (runner != null)
+                {
+                    // Clear ready status if still connected
+                    if (runner.IsRunning)
+                    {
+                        var localPlayerData = FindObjectsOfType<PlayerNetworkData>()
+                            .FirstOrDefault(pd => pd != null && pd.Object != null && pd.Object.HasInputAuthority);
+                        
+                        if (localPlayerData != null && localPlayerData.IsReady && localPlayerData.HasStateAuthority)
                         {
                             localPlayerData.IsReady = false;
-                            localPlayerData.InGame = false; // Also clear InGame status
+                            localPlayerData.InGame = false;
+                            await System.Threading.Tasks.Task.Delay(100);
                         }
-                        await System.Threading.Tasks.Task.Delay(100); // Give time for state to sync
-                    } // Debug.Log("🔌 Shutting down runner...");
+                    }
                     
-                    // Shutdown with graceful flag to prevent error logs
+                    // Shutdown — gracefully if running, skip if already shut down
                     try
                     {
-                        await runner.Shutdown(true, ShutdownReason.Ok);
-                        
-                        // Wait for shutdown to complete
-                        int maxWait = 50; // 5 seconds max
-                        int waited = 0;
-                        while (!runner.IsShutdown && waited < maxWait)
-                        {
-                            await System.Threading.Tasks.Task.Delay(100);
-                            waited++;
-                        } // Debug.Log($"✅ Runner shutdown complete after {waited * 100}ms");
+                        runner.RemoveCallbacks(this);
+                        if (!runner.IsShutdown)
+                            await runner.Shutdown(true, ShutdownReason.Ok);
                     }
-                    catch (Exception ex)
-                    {
-                        // Suppress expected Fusion shutdown exceptions // Debug.Log($"ℹ️ Runner shutdown completed (expected disconnection): {ex.Message}");
-                    }
+                    catch { /* expected during rapid leave cycles */ }
                     
-                    // Destroy the game runner
+                    // ALWAYS destroy the runner GO — regardless of IsRunning/IsShutdown state
                     if (runner != null && runner.gameObject != null)
                     {
                         Destroy(runner.gameObject);
                     }
                     runner = null;
                     
-                    // Wait longer for Photon to fully disconnect // Debug.Log("⏳ Waiting for Photon to fully disconnect...");
-                    await System.Threading.Tasks.Task.Delay(2000); // 2 seconds for complete cleanup
+                    // Wait for Photon to fully disconnect
+                    await System.Threading.Tasks.Task.Delay(2000);
                 }
             }
             catch (Exception ex)
-            { // Debug.LogWarning($"⚠️ Exception during LeaveRoom: {ex.Message}");
+            {
+                Debug.LogWarning($"[LeaveRoom] cleanup exception: {ex.Message}");
+                // Ensure runner is always nulled
+                if (runner != null && runner.gameObject != null)
+                    Destroy(runner.gameObject);
+                runner = null;
             }
             finally
             {
-                // Always reset the flag after leaving
+                // Always reset flags
                 isLeavingRoom = false;
-                isNetworkReady = false; // Reset network ready flag
+                isNetworkReady = false;
+                runner = null; // Triple-ensure runner is nulled
+            }
+
+            // After runner shutdown, clean up any orphaned GSM that survived DontDestroyOnLoad.
+            // This is safe because the runner is dead — no network despawn will be broadcast.
+            var orphanedGSM = FindObjectOfType<GameStateManager>();
+            if (orphanedGSM != null)
+            {
+                Debug.Log("[NetworkManager] Cleaning up orphaned GSM after runner shutdown");
+                orphanedGSM.gameObject.SetActive(false);
+                Destroy(orphanedGSM.gameObject);
+                GameStateManager.Instance = null;
             }
 
             // Clear room data
@@ -589,16 +747,57 @@ namespace ArtisansGuns.Networking
         /// </summary>
         public async Task StartGame()
         {
-            if (runner == null || !runner.IsRunning) return;
-
-            // Manual override (e.g. "START GAME" button in private rooms).
-            if (GameStateManager.Instance != null
-                && !GameStateManager.Instance.CountdownStarted && !GameStateManager.Instance.GameInProgress)
+            if (runner == null || !runner.IsRunning)
             {
-                if (GameStateManager.Instance.HasStateAuthority)
-                    GameStateManager.Instance.BeginCountdownSequence();
+                Debug.LogWarning("[StartGame] BLOCKED: runner is null or not running");
+                return;
+            }
+
+            // If GSM.Instance is null, try to find/register an existing one
+            if (GameStateManager.Instance == null)
+            {
+                var existingGSM = FindObjectOfType<GameStateManager>();
+                if (existingGSM != null && existingGSM.gameObject.activeInHierarchy
+                    && existingGSM.Object != null && existingGSM.Object.IsValid)
+                {
+                    GameStateManager.Instance = existingGSM;
+                    Debug.Log("[StartGame] Re-registered orphaned GSM");
+                }
                 else
-                    GameStateManager.Instance.RPC_BeginCountdownSequence();
+                {
+                    Debug.LogWarning("[StartGame] BLOCKED: GameStateManager.Instance is null and no valid GSM found in scene");
+                    return;
+                }
+            }
+
+            var gsm = GameStateManager.Instance;
+            if (gsm.Object == null || !gsm.Object.IsValid)
+            {
+                Debug.LogWarning("[StartGame] BLOCKED: GSM NetworkObject is null or invalid");
+                return;
+            }
+
+            // Check guards and log which one blocks
+            if (gsm.CountdownStarted)
+            {
+                Debug.Log("[StartGame] Skipped: CountdownStarted is already true");
+            }
+            else if (gsm.GameInProgress)
+            {
+                Debug.Log("[StartGame] Skipped: GameInProgress is already true");
+            }
+            else if (gsm.PreStartActive)
+            {
+                Debug.Log("[StartGame] Skipped: PreStartActive is already true");
+            }
+            else
+            {
+                // All guards clear — start the game
+                Debug.Log($"[StartGame] Starting game (HasSA={gsm.HasStateAuthority}, MatchEnded={gsm.MatchEnded})");
+                if (gsm.HasStateAuthority)
+                    gsm.BeginCountdownSequence();
+                else
+                    gsm.RPC_BeginCountdownSequence();
             }
 
             OnGameStarted?.Invoke();
@@ -821,24 +1020,24 @@ namespace ArtisansGuns.Networking
             
             // .IO: Always allow new joiners (no game-in-progress rejection)
             
-            // Spawn GameStateManager if it doesn't exist (first player to join does this in Shared Mode)
-            if (GameStateManager.Instance == null && runner.GameMode == GameMode.Shared)
+            // Spawn GameStateManager if it doesn't exist (any local player can do this in Shared Mode)
+            if (GameStateManager.Instance == null && runner.GameMode == GameMode.Shared && player == runner.LocalPlayer)
             {
-                if (player == runner.LocalPlayer && runner.ActivePlayers.Count() == 1)
+                // Try to find an existing GSM object in the scene first
+                var existingGSM = FindObjectOfType<GameStateManager>();
+                if (existingGSM != null && existingGSM.gameObject.activeInHierarchy)
                 {
-                    if (gameStateManagerPrefab != null)
-                    {
-                        Debug.Log("[OnPlayerJoined] Spawning GameStateManager (first player in Shared Mode)");
-                        var gameState = runner.Spawn(gameStateManagerPrefab, Vector3.zero, Quaternion.identity, PlayerRef.None);
-                    }
-                    else
-                    {
-                        Debug.LogError("[OnPlayerJoined] GameStateManager prefab not assigned!");
-                    }
+                    GameStateManager.Instance = existingGSM;
+                    Debug.Log("[OnPlayerJoined] GSM Instance was null but object exists — re-registered");
+                }
+                else if (gameStateManagerPrefab != null)
+                {
+                    Debug.Log("[OnPlayerJoined] Spawning GameStateManager (Shared Mode, no existing GSM)");
+                    runner.Spawn(gameStateManagerPrefab, Vector3.zero, Quaternion.identity, PlayerRef.None);
                 }
                 else
                 {
-                    Debug.Log($"[OnPlayerJoined] GSM null but not first player (isLocal={player == runner.LocalPlayer}, activePlayers={runner.ActivePlayers.Count()})");
+                    Debug.LogError("[OnPlayerJoined] GameStateManager prefab not assigned!");
                 }
             }
             
@@ -1073,10 +1272,26 @@ namespace ArtisansGuns.Networking
             OnPlayerLeftRoom?.Invoke(player);
             
             // Check if game is in progress (ensure GameStateManager is spawned before accessing)
-            bool gameInProgress = GameStateManager.Instance != null && 
-                                  GameStateManager.Instance.Object != null && 
-                                  GameStateManager.Instance.Object.IsValid &&
-                                  GameStateManager.Instance.GameInProgress;
+            var gsm = GameStateManager.Instance;
+            bool gsmValid = gsm != null && gsm.Object != null && gsm.Object.IsValid;
+            bool gameInProgress = gsmValid && gsm.GameInProgress;
+            
+            // ── CRITICAL: Save GSM state BEFORE Fusion can destroy it ──
+            // When the StateAuthority holder disconnects, Fusion may destroy the GSM
+            // on all clients. We need a backup to restore on the new GSM.
+            if (gsmValid && (gameInProgress || gsm.PreStartActive || gsm.CountdownStarted))
+            {
+                gsm.SaveMatchState();
+                Debug.Log($"[OnPlayerLeft] Saved GSM state (GameInProgress={gsm.GameInProgress}, Time={gsm.MatchTimeRemaining})");
+                
+                // Try to claim StateAuthority — if we get it before Fusion's cleanup,
+                // the GSM survives and we don't need the backup at all.
+                if (!gsm.Object.HasStateAuthority)
+                {
+                    gsm.Object.RequestStateAuthority();
+                    Debug.Log("[OnPlayerLeft] Requested StateAuthority on GSM to prevent destruction");
+                }
+            }
             
             if (gameInProgress)
             { // Debug.Log($"🎮 Game in progress - player {player.PlayerId} data will persist for rejoin");
@@ -1106,6 +1321,13 @@ namespace ArtisansGuns.Networking
             if (wasHost)
             {
                 TransferHost(runner);
+            }
+
+            // Safety net: if the GSM was destroyed when the StateAuthority left,
+            // the new host must respawn it so the game can continue.
+            if (player != runner.LocalPlayer && runner.GameMode == GameMode.Shared)
+            {
+                StartCoroutine(EnsureGSMAfterPlayerLeft(runner));
             }
 
             // If we are the one who left, return to lobby
@@ -1165,19 +1387,58 @@ namespace ArtisansGuns.Networking
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            // Only log as warning if it's an unexpected shutdown
-            if (isLeavingRoom || shutdownReason == ShutdownReason.Ok)
-            { // Debug.Log($"✅ Runner shutdown (expected): {shutdownReason}");
-            }
-            else
-            { // Debug.LogWarning($"⚠️ Runner shutdown (unexpected): {shutdownReason}");
+            bool unexpected = !isLeavingRoom && shutdownReason != ShutdownReason.Ok;
+
+            if (unexpected)
+            {
+                Debug.LogWarning($"[NetworkManager] Runner shutdown (UNEXPECTED): {shutdownReason}");
             }
             
             // Clear all session state on shutdown to prevent stale data in next session
             ResetSessionState();
+            ArtisansGuns.Audio.ComboKillManager.Instance?.ResetForNewMatch();
             CurrentRoomCode = null;
+
+            // Dismiss a stuck loading screen so the user isn't trapped
+            if (PreWarmManager.Instance != null && PreWarmManager.Instance.IsLoading)
+            {
+                Debug.LogWarning("[NetworkManager] Dismissing loading screen after shutdown");
+                PreWarmManager.Instance.HideLoading();
+            }
+
+            // If the disconnect was unexpected and we're in a game scene,
+            // go back to lobby so the player can retry.
+            string currentScene = SceneManager.GetActiveScene().name;
+            bool inGameScene = currentScene == "Sandbox" || currentScene.StartsWith("Map");
+            if (unexpected && inGameScene)
+            {
+                Debug.LogWarning($"[NetworkManager] Unexpected shutdown in {currentScene} — returning to LobbyScene");
+                isNetworkReady = false;
+                SceneManager.LoadScene("LobbyScene");
+                // Re-initialize after settling
+                RetryNetworkingAfterDelay();
+            }
+
+            // Free unused assets and run GC to reclaim memory on low-RAM devices
+            Resources.UnloadUnusedAssets();
+            System.GC.Collect();
             
             OnDisconnected?.Invoke();
+        }
+
+        /// <summary>Delayed re-initialization after an unexpected disconnect sends us back to lobby.</summary>
+        private async void RetryNetworkingAfterDelay()
+        {
+            await Task.Delay(2000);
+            try
+            {
+                await InitializeNetworking();
+                Debug.Log("[NetworkManager] Re-initialized networking after unexpected disconnect");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[NetworkManager] Re-init after disconnect failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1288,9 +1549,16 @@ namespace ArtisansGuns.Networking
                 Debug.Log($"[OnSceneLoadDone] Game scene '{sceneName}' — deferring spawn until pre-warm completes");
                 PreWarmManager.Instance.RunPreWarm(() =>
                 {
+                    // Use this.runner (current field) in case the captured parameter became stale
+                    var activeRunner = this.runner;
+                    if (activeRunner == null || activeRunner.IsShutdown)
+                    {
+                        Debug.LogWarning("[OnSceneLoadDone] Runner died during pre-warm — cannot spawn player");
+                        return;
+                    }
                     Debug.Log("[OnSceneLoadDone] Pre-warm complete — now spawning player");
-                    SpawnPlayerIfNeeded(runner, sceneName);
-                    EnsureGSM(runner, sceneName);
+                    SpawnPlayerIfNeeded(activeRunner, sceneName);
+                    EnsureGSM(activeRunner, sceneName);
                 });
                 return;
             }
@@ -1303,6 +1571,12 @@ namespace ArtisansGuns.Networking
         /// <summary>Spawn the local player if they don't already exist in the scene.</summary>
         private void SpawnPlayerIfNeeded(NetworkRunner runner, string sceneName)
         {
+            if (runner == null || runner.IsShutdown)
+            {
+                Debug.LogWarning($"[SpawnPlayerIfNeeded] Runner is null or shutdown — cannot spawn in {sceneName}");
+                return;
+            }
+
             var existingPlayer = FindObjectsOfType<PlayerNetworkData>()
                 .FirstOrDefault(pd => pd != null && pd.Object != null && pd.Object.InputAuthority == runner.LocalPlayer);
 
@@ -1317,13 +1591,38 @@ namespace ArtisansGuns.Networking
             }
         }
 
+        /// <summary>
+        /// Safety net: verify the local player exists in the game scene.
+        /// Called from HandleAppResume when runner is alive but player may be missing.
+        /// </summary>
+        private void EnsureLocalPlayerSpawned()
+        {
+            if (runner == null || !runner.IsRunning) return;
+
+            string sceneName = SceneManager.GetActiveScene().name;
+            bool isGameScene = sceneName == "Sandbox" || sceneName.StartsWith("Map");
+            if (!isGameScene) return;
+
+            // If PreWarm is still running, the callback chain will handle spawning
+            if (PreWarmManager.Instance != null && PreWarmManager.Instance.IsLoading) return;
+
+            var existingPlayer = FindObjectsOfType<PlayerNetworkData>()
+                .FirstOrDefault(pd => pd != null && pd.Object != null && pd.Object.InputAuthority == runner.LocalPlayer);
+
+            if (existingPlayer == null)
+            {
+                Debug.LogWarning("[EnsureLocalPlayerSpawned] No local player found in game scene — force spawning");
+                SpawnPlayer(runner, runner.LocalPlayer);
+            }
+        }
+
         /// <summary>Ensure GameStateManager exists in the game scene.</summary>
         private void EnsureGSM(NetworkRunner runner, string sceneName)
         {
             if (GameStateManager.Instance == null && (sceneName == "Sandbox" || sceneName.StartsWith("Map")))
             {
                 var existingGSM = FindObjectOfType<GameStateManager>();
-                if (existingGSM != null)
+                if (existingGSM != null && existingGSM.gameObject.activeInHierarchy)
                 {
                     Debug.Log("[OnSceneLoadDone] GSM Instance was null but object exists — re-registering");
                     GameStateManager.Instance = existingGSM;
@@ -1336,6 +1635,64 @@ namespace ArtisansGuns.Networking
                 else
                 {
                     Debug.LogWarning($"[OnSceneLoadDone] GSM still null (isHost={isHost}, prefab={(gameStateManagerPrefab != null)})");
+                }
+            }
+        }
+
+        /// <summary>
+        /// After a player leaves, wait a beat for Fusion to finish cleanup, then
+        /// check if the GSM was destroyed (StateAuthority left). If so, respawn it.
+        /// </summary>
+        private System.Collections.IEnumerator EnsureGSMAfterPlayerLeft(NetworkRunner runner)
+        {
+            // Wait for Fusion to process the disconnect and potential object destruction
+            yield return new WaitForSeconds(0.5f);
+
+            if (runner == null || !runner.IsRunning) yield break;
+
+            bool gsmMissing = GameStateManager.Instance == null 
+                           || GameStateManager.Instance.gameObject == null;
+
+            // Also check if the NetworkObject was despawned (Object becomes null)
+            if (!gsmMissing && GameStateManager.Instance.Object == null)
+            {
+                Debug.Log("[EnsureGSM] GSM exists but NetworkObject was despawned — destroying stale GO");
+                Destroy(GameStateManager.Instance.gameObject);
+                GameStateManager.Instance = null;
+                gsmMissing = true;
+            }
+
+            // If GSM survived (RequestStateAuthority worked), ensure the timer coroutine is running
+            if (!gsmMissing && GameStateManager.Instance.Object != null && GameStateManager.Instance.Object.IsValid)
+            {
+                Debug.Log("[EnsureGSM] GSM survived host-leave — clearing backup");
+                GameStateManager.Backup = default; // Clear unused backup
+                yield break;
+            }
+
+            if (gsmMissing)
+            {
+                bool hasBackup = GameStateManager.Backup.Valid;
+                
+                // Try to find an orphaned GSM in the scene
+                var existingGSM = FindObjectOfType<GameStateManager>();
+                if (existingGSM != null && existingGSM.Object != null && existingGSM.Object.IsValid)
+                {
+                    GameStateManager.Instance = existingGSM;
+                    Debug.Log("[EnsureGSM] Re-registered orphaned GSM after player left");
+                    
+                    // Restore state if we have a backup and StateAuthority
+                    if (hasBackup && existingGSM.HasStateAuthority)
+                    {
+                        existingGSM.RestoreMatchState();
+                    }
+                }
+                else if (gameStateManagerPrefab != null)
+                {
+                    Debug.Log($"[EnsureGSM] GSM destroyed after player left — respawning (hasBackup={hasBackup})");
+                    if (existingGSM != null) Destroy(existingGSM.gameObject);
+                    runner.Spawn(gameStateManagerPrefab, Vector3.zero, Quaternion.identity, PlayerRef.None);
+                    // RestoreMatchState will be called from GSM.Spawned() if Backup.Valid is true
                 }
             }
         }

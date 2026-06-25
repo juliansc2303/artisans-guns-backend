@@ -76,7 +76,7 @@ namespace Fusion {
 
     public NetworkRunner Runner { get; private set; }
 
-    private bool IsMultiplePeer => Runner.Config.PeerMode == NetworkProjectConfig.PeerModes.Multiple;
+    private bool IsMultiplePeer => Runner != null && Runner.Config != null && Runner.Config.PeerMode == NetworkProjectConfig.PeerModes.Multiple;
     private bool _isLoading;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -584,6 +584,16 @@ namespace Fusion {
       // scene objects need to be sorted by something that will guarantee the order
       Array.Sort(sceneObjects, NetworkObjectSortKeyComparer.Instance);
 
+      // Yield a frame so Runner.Update() can send heartbeats after the heavy
+      // scene activation + GetComponents + Sort work.
+      yield return null;
+
+      // Runner could have been shut down while we yielded (e.g. Code 104)
+      if (Runner == null || Runner.IsShutdown) {
+        Debug.LogWarning("[NetworkSceneManagerDefault] Runner died after scene activation — aborting");
+        yield break;
+      }
+
       if (IsMultiplePeer) {
         // create a root GO for all the gameObjects in the newly loaded scene
         var newSceneRoot = new GameObject($"[{scene.name}]").AddComponent<MultiPeerSceneRoot>();
@@ -616,6 +626,10 @@ namespace Fusion {
       // register scene objects; this will deactivate GameObjects for clients
       // the additional loadId parameter is passed to ensure each scene load
       // yields unique type ids for scene objects
+      if (Runner == null || Runner.IsShutdown) {
+        Debug.LogWarning("[NetworkSceneManagerDefault] Runner died during scene load — skipping RegisterSceneObjects / InvokeSceneLoadDone");
+        yield break;
+      }
       Runner.RegisterSceneObjects(sceneRef, sceneObjects, loadId: sceneParams.LoadId);
       
       Log.TraceSceneManager(Runner, $"Finished loading & processing {scene.Dump()} for {sceneRef}");

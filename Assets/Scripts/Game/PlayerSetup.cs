@@ -153,7 +153,17 @@ namespace ArtisansGuns.Game
             LoadWeaponsFromLoadout();
             
             // Setup based on authority
-            if (Object.HasInputAuthority)
+            var pc = GetComponent<PlayerController>();
+            if (pc != null && pc.IsBotControlled)
+            {
+                // Host drives the bot (FPV weapon for fire logic + TPV weapon for visuals)
+                // Remote clients only need the TPV weapon (same as any remote player)
+                if (Object.HasStateAuthority)
+                    SetupBotPlayer();
+                else
+                    SetupRemotePlayer();
+            }
+            else if (Object.HasInputAuthority)
             {
                 SetupLocalPlayer();
             }
@@ -165,10 +175,69 @@ namespace ArtisansGuns.Game
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
-            // Unsubscribe UIToolkit events to prevent memory leaks / stale calls
-            ArtisansGuns.UI.MobileControlsController.OnKnifeSelect     -= EquipKnife;
-            if (_onPrimarySelectHandler   != null) ArtisansGuns.UI.MobileControlsController.OnPrimarySelect   -= _onPrimarySelectHandler;
-            if (_onSecondarySelectHandler != null) ArtisansGuns.UI.MobileControlsController.OnSecondarySelect -= _onSecondarySelectHandler;
+            UnsubscribeEvents();
+
+            // Stop all coroutines (DeferredDestroy, IK-connect) to prevent
+            // callbacks firing on a half-destroyed object.
+            StopAllCoroutines();
+            fpvIKCoroutine = null;
+            tpvIKCoroutine = null;
+
+            // Safely detach IK before destroying weapons (Burst safety)
+            SafeDetachFPVIK();
+            SafeDetachTPVIK();
+
+            // Destroy weapon instances
+            if (currentWeaponInstance != null)
+            {
+                Destroy(currentWeaponInstance);
+                currentWeaponInstance = null;
+                currentFireWeapon = null;
+            }
+
+            // Destroy safe IK target
+            if (safeIKTarget != null)
+            {
+                Destroy(safeIKTarget.gameObject);
+                safeIKTarget = null;
+            }
+
+            hasSpawned = false;
+        }
+
+        /// <summary>
+        /// Safety net: unsubscribe static events even if Despawned() never fired
+        /// (e.g. scene load destroyed the GO before Fusion processed the despawn).
+        /// Also disables RigBuilders so in-flight Burst IK jobs don't read freed transforms.
+        /// </summary>
+        private void OnDestroy()
+        {
+            UnsubscribeEvents();
+
+            // Disable RigBuilders FIRST so Burst stops scheduling IK jobs.
+            // This must happen before any transforms are freed by scene unload.
+            if (rigBuilder != null) rigBuilder.enabled = false;
+            if (tpvRigBuilder != null) tpvRigBuilder.enabled = false;
+        }
+
+        /// <summary>
+        /// Removes all static event subscriptions so stale delegates on
+        /// MobileControlsController (DontDestroyOnLoad) don't invoke methods
+        /// on this destroyed NetworkBehaviour.
+        /// </summary>
+        private void UnsubscribeEvents()
+        {
+            ArtisansGuns.UI.MobileControlsController.OnKnifeSelect -= EquipKnife;
+            if (_onPrimarySelectHandler != null)
+            {
+                ArtisansGuns.UI.MobileControlsController.OnPrimarySelect -= _onPrimarySelectHandler;
+                _onPrimarySelectHandler = null;
+            }
+            if (_onSecondarySelectHandler != null)
+            {
+                ArtisansGuns.UI.MobileControlsController.OnSecondarySelect -= _onSecondarySelectHandler;
+                _onSecondarySelectHandler = null;
+            }
         }
         
         /// <summary>
@@ -252,8 +321,43 @@ namespace ArtisansGuns.Game
                 Debug.LogWarning("âš ï¸ [PlayerSetup] Remote player has no primary weapon config!");
             }
         }
-        
-        
+
+        /// <summary>
+        /// Setup for bot player (host-controlled).
+        /// Spawns FPV weapon for FireWeapon logic (ammo, fire rate, raycasting)
+        /// and TPV weapon for visual representation to other players.
+        /// No UI subscriptions, no GameUIManager, no mobile controls.
+        /// </summary>
+        private void SetupBotPlayer()
+        {
+            playerController = GetComponent<PlayerController>();
+
+            // Save original weaponHolder transform
+            if (weaponHolder != null)
+            {
+                weaponHolderOriginalPosition = weaponHolder.localPosition;
+                weaponHolderOriginalRotation = weaponHolder.localRotation;
+            }
+
+            // Spawn FPV weapon for FireWeapon component (handles ammo, raycasting, damage)
+            // SpawnWeapon() already calls SpawnTPVWeapon() internally at the end,
+            // so we don't need to call SpawnTPVWeapon() again.
+            if (primaryWeaponConfig != null)
+            {
+                Debug.Log($"[PlayerSetup] Bot SetupBotPlayer: weapon={primaryWeaponConfig.weaponName}, tpvPrefab={(primaryWeaponConfig.prefabWeaponTPV != null ? primaryWeaponConfig.prefabWeaponTPV.name : "NULL")}, tpvController={(tpvController != null ? "OK" : "NULL")}");
+                SpawnWeapon(primaryWeaponConfig, true);
+
+                // Force weapon ready immediately (bots don't play equip animations)
+                if (currentFireWeapon != null)
+                    currentFireWeapon.ForceReady();
+            }
+            else
+            {
+                Debug.LogError("[PlayerSetup] Bot has null primaryWeaponConfig! Check OnBeforeSpawned weapon data.");
+            }
+        }
+
+
         /// <summary>
         /// Update Primary weapon cell UI via MobileControlsController.
         /// </summary>
@@ -523,6 +627,15 @@ namespace ArtisansGuns.Game
             // Instantiate weapon prefab as child of weaponHolder
             // Uses LOCAL position/rotation/scale saved in the prefab
             currentWeaponInstance = Instantiate(weaponConfig.weaponPrefab, weaponHolder);
+
+            // Bots need the FPV weapon GO active so MonoBehaviour lifecycle (Awake/Start)
+            // runs and FireWeapon can initialize properly. The weapon is on layer 6 (FPV),
+            // invisible to all cameras except the local player's FPV overlay.
+            if (playerController != null && playerController.IsBotControlled
+                && !currentWeaponInstance.activeSelf)
+            {
+                currentWeaponInstance.SetActive(true);
+            }
             
             // Set WeaponHolder + PlayerController BEFORE initializing components.
             // Passing playerController explicitly avoids FindObjectOfType, which in
@@ -564,13 +677,18 @@ namespace ArtisansGuns.Game
                 // Debug.LogError("Ã¢ÂÅ’ [PlayerSetup] FireWeapon component not found on weapon prefab!");
             }
             
-            // Connect weapon grips to player IK constraints (async to wait for rig rebuild)
-            if (fpvIKCoroutine != null) StopCoroutine(fpvIKCoroutine);
-            fpvIKCoroutine = ConnectWeaponGripsToIKCoroutine(currentWeaponInstance);
-            StartCoroutine(fpvIKCoroutine);
+            // Skip FPV IK and animator setup for bots (FPV weapon may be inactive)
+            bool isBotPlayer = playerController != null && playerController.IsBotControlled;
+            if (!isBotPlayer)
+            {
+                // Connect weapon grips to player IK constraints (async to wait for rig rebuild)
+                if (fpvIKCoroutine != null) StopCoroutine(fpvIKCoroutine);
+                fpvIKCoroutine = ConnectWeaponGripsToIKCoroutine(currentWeaponInstance);
+                StartCoroutine(fpvIKCoroutine);
+            }
             
             // Change hands AnimatorController if provided
-            if (handsAnimator != null && weaponConfig.handsAnimatorController != null)
+            if (!isBotPlayer && handsAnimator != null && weaponConfig.handsAnimatorController != null)
             {
                 // CRITICAL: Fully reset animator to apply new pose
                 handsAnimator.enabled = false;
@@ -592,8 +710,9 @@ namespace ArtisansGuns.Game
             isPrimaryEquipped = isPrimary;
             isKnifeEquipped = false; // Gun equipped (not knife)
 
-            // Update active weapon highlight in UIToolkit HUD
-            ArtisansGuns.UI.MobileControlsController.Instance?.SetActiveWeapon(isPrimary);
+            // Update active weapon highlight in UIToolkit HUD (skip for bots — they don't own the UI)
+            if (!isBotPlayer)
+                ArtisansGuns.UI.MobileControlsController.Instance?.SetActiveWeapon(isPrimary);
 
             // Inform remote players which weapon slot is now active so they swap their TPV model
             if (HasInputAuthority)
@@ -606,8 +725,11 @@ namespace ArtisansGuns.Game
             }
             
             // Update BOTH weapon cells UI (need to show both weapons' ammo correctly)
-            UpdatePrimaryWeaponCell();
-            UpdateSecondaryWeaponCell();
+            if (!isBotPlayer)
+            {
+                UpdatePrimaryWeaponCell();
+                UpdateSecondaryWeaponCell();
+            }
             
             // Spawn TPV weapon (third-person view, visible to other players)
             SpawnTPVWeapon(weaponConfig);
@@ -1065,14 +1187,21 @@ namespace ArtisansGuns.Game
         {
             primaryWeaponConfig   = originalPrimary;
             secondaryWeaponConfig = originalSecondary;
-            primaryAmmo   = originalPrimary   != null ? originalPrimary.maxAmmo   : -1;
-            secondaryAmmo = originalSecondary != null ? originalSecondary.maxAmmo : -1;
 
-            // Re-spawn primary weapon with full ammo
+            // Re-spawn primary weapon (this will save current weapon ammo first,
+            // so we must set full ammo AFTER SpawnWeapon to avoid being overwritten)
             if (primaryWeaponConfig != null)
             {
                 SpawnWeapon(primaryWeaponConfig, true);
             }
+
+            // Force full ammo AFTER SpawnWeapon (which may have saved stale ammo from the old weapon)
+            primaryAmmo   = originalPrimary   != null ? originalPrimary.maxAmmo   : -1;
+            secondaryAmmo = originalSecondary != null ? originalSecondary.maxAmmo : -1;
+
+            // Also update the live FireWeapon component to full ammo
+            if (currentFireWeapon != null && originalPrimary != null)
+                currentFireWeapon.SetAmmo(originalPrimary.maxAmmo);
 
             // Refresh HUD cells
             UpdatePrimaryWeaponCell();
@@ -1324,11 +1453,16 @@ namespace ArtisansGuns.Game
             // Pass TPV bullet trail data
             tpvController.SetTrailData(weaponConfig.tpvTrailPrefab, weaponConfig.tpvTrailSpeed);
 
-            // Pass TPV fire sound
-            tpvController.SetFireSoundData(weaponConfig.fireSoundTPV);
+            // Pass TPV fire sound (fall back to FPV fire sound if no TPV-specific clip)
+            AudioClip tpvFireClip = weaponConfig.fireSoundTPV != null
+                ? weaponConfig.fireSoundTPV
+                : weaponConfig.fireSound;
+            tpvController.SetFireSoundData(tpvFireClip);
 
             // Pass reload sounds so TPV animation events can play them in 3D
             tpvController.SetReloadSoundData(weaponConfig.reloadSounds);
+
+            Debug.Log($"[PlayerSetup] SpawnTPVWeapon done: flash={(tpvFlashPrefab != null ? tpvFlashPrefab.name : "NULL")}, sound={(tpvFireClip != null ? tpvFireClip.name : "NULL")}, trail={(weaponConfig.tpvTrailPrefab != null ? weaponConfig.tpvTrailPrefab.name : "NULL")}");
             
             // Get reference to spawned weapon (for later cleanup)
             // Note: SpawnTPVWeapon creates the instance internally

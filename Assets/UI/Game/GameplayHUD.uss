@@ -153,9 +153,9 @@
     position: absolute;
     top: 50px;
     right: 30px;
-    width: 96px;
-    height: 96px;
-    border-radius: 48px;
+    width: 130px;
+    height: 130px;
+    border-radius: 65px;
     background-color: rgba(0, 0, 0, 0.4);
     border-width: 0;
     transition-duration: 0.2s;
@@ -174,11 +174,11 @@
 
 /* Larger icon inside button */
 .settings-icon-large {
-    width: 60px; /* Specific size - no percentage */
-    height: 60px;
+    width: 80px;
+    height: 80px;
     position: absolute;
-    left: 10px; /* Centered: (80-60)/2 */
-    top: 10px;
+    left: 25px;
+    top: 25px;
     background-image: url('project://database/Assets/UI/Sprites/SettingsIcon.png?fileID=2800000&guid=2554f6f38e345454ba593f8c8f0df258&type=3#SettingsIcon');
     -unity-background-scale-mode: scale-to-fit;
     opacity: 1.0; 
@@ -918,9 +918,9 @@
 .scores-tab-button {
     position: absolute;
     top: 0;
-    left: 0;
-    width: 110px;
-    height: 44px;
+    left: 60px;
+    width: 160px;
+    height: 60px;
     margin: 12px;
     background-color: rgba(0, 0, 0, 0.55);
     border-width: 0;
@@ -936,7 +936,7 @@
 }
 
 .scores-tab-label {
-    font-size: 13px;
+    font-size: 16px;
     -unity-font-style: bold;
     color: rgba(255, 255, 255, 0.75);
     -unity-text-align: middle-center;
@@ -965,8 +965,8 @@
 }
 
 .scores-panel {
-    width: 880px;
-    min-height: 520px;
+    width: 1360px;
+    min-height: 600px;
     background-color: rgba(8, 8, 16, 0.97);
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
@@ -995,12 +995,14 @@
 }
 
 .scores-close-btn {
-    width: 28px;
-    height: 28px;
-    background-color: rgba(255, 255, 255, 0.06);
-    border-width: 0;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 14px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 24px;
     -unity-text-align: middle-center;
     padding: 0;
 }
@@ -1073,7 +1075,7 @@
     flex-direction: row;
     align-items: stretch;
     height: 52px;
-    padding: 0;
+    padding: 0 8px 0 0;
     background-color: rgba(255, 255, 255, 0.03);
     margin-bottom: 3px;
     overflow: hidden;
@@ -1116,11 +1118,15 @@
 }
 
 .scores-player-name {
-    flex-grow: 1;
+    width: 200px;
+    flex-shrink: 0;
+    flex-grow: 0;
     font-size: 14px;
     color: rgba(255, 255, 255, 0.9);
     -unity-font-style: bold;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     -unity-text-align: middle-left;
 }
 
@@ -1130,6 +1136,8 @@
     gap: 4px;
     flex-shrink: 0;
     margin-right: 16px;
+    width: 90px;
+    justify-content: center;
 }
 
 .scores-kills {
@@ -1154,12 +1162,13 @@
 }
 
 .scores-stat-cell {
-    width: 32px;
+    width: 50px;
     font-size: 14px;
     -unity-font-style: bold;
     color: rgba(255, 255, 255, 0.7);
     -unity-text-align: middle-center;
     flex-shrink: 0;
+    flex-grow: 0;
 }
 
 /* Local player highlight — team-specific */
@@ -1477,7 +1486,7 @@
 /* ── Post-Match Scoreboard Panel ─── */
 
 .pm-scoreboard {
-    width: 1060px;
+    width: 1360px;
     background-color: rgba(8, 8, 16, 0.92);
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
@@ -1624,6 +1633,15 @@
     -unity-text-align: middle-center;
 }
 
+.pm-player-info {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-direction: row;
+    align-items: center;
+    overflow: hidden;
+    min-width: 0;
+}
+
 .pm-player-name {
     flex-grow: 1;
     flex-shrink: 1;
@@ -1633,7 +1651,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 200px;
     min-width: 0;
     -unity-text-align: middle-left;
 }

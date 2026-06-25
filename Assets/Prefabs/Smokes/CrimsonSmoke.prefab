@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 7280484577600228770}
   - component: {fileID: 2232522787229508557}
   - component: {fileID: 3148334009684887184}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: ExteriorSmoke
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -102,7 +102,7 @@ GameObject:
   - component: {fileID: 3554047458057595881}
   - component: {fileID: 5843173558251778875}
   - component: {fileID: 3017413763283111778}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Particles
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -192,7 +192,7 @@ GameObject:
   - component: {fileID: 5333371016922966006}
   - component: {fileID: 4364869499793911637}
   - component: {fileID: 5761276275751060768}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: InteriorSmoke
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -281,7 +281,8 @@ GameObject:
   m_Component:
   - component: {fileID: 7497808370221784758}
   - component: {fileID: -1107854567725072168}
-  m_Layer: 0
+  - component: {fileID: 6671850154923229868}
+  m_Layer: 15
   m_Name: CrimsonSmoke
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -319,3 +320,24 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Abilities.CrimsonSmoke
   interiorSmokeRenderer: {fileID: 5761276275751060768}
   opacityPropertyName: _Opacity
+--- !u!135 &6671850154923229868
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4551834779442464622}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.5
+  m_Center: {x: 0, y: 0, z: 0}

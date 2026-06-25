@@ -31,6 +31,24 @@ namespace ArtisansGuns.Game
         /// </summary>
         public static bool InputFrozen { get; set; } = false;
 
+        /// <summary>
+        /// When true, this player is controlled by BotBrain instead of touch input.
+        /// Set by BotManager in OnBeforeSpawned.
+        /// </summary>
+        [Networked] public NetworkBool IsBotControlled { get; set; }
+
+        // ── Bot input (written by BotBrain.SetBotInput) ─────────────────
+        private Vector2 _botMoveInput;
+        private bool    _botJumpInput;
+        private float   _botYaw;
+        private float   _botPitch;
+        private bool    _botWantsCrouch;
+
+        /// <summary>Current vertical aim angle (for bot raycast aiming).</summary>
+        public float CurrentPitch => currentPitch;
+        /// <summary>Current horizontal aim angle (for bot raycast aiming).</summary>
+        public float CurrentYaw => currentYaw;
+
         [Header("Movement Settings")]
         [SerializeField] private float baseSpeed = 5f; // Base movement speed (modified by weapon weight)
         private float moveSpeed = 5f; // Current movement speed (baseSpeed * weapon multiplier)
@@ -39,6 +57,9 @@ namespace ArtisansGuns.Game
         // ─── Damage slow ────────────────────────────────────────────────
         private float _damageSlowMultiplier = 1f;    // 1 = normal, <1 = slowed
         private Coroutine _damageSlowCoroutine;
+
+        // ─── Momentum speed bonus ───────────────────────────────────────
+        private float _momentumSpeedMultiplier = 1f; // 1 = base, set by MomentumManager
 
         [Header("Camera Settings")]
         [SerializeField] private float lookSensitivity = 2f;
@@ -130,7 +151,47 @@ namespace ArtisansGuns.Game
             bool isLobby = currentScene == "LobbyScene";
 
             // Setup camera for local player
-            if (HasInputAuthority)
+            if (IsBotControlled && HasStateAuthority)
+            {
+                // Bot player: enable CharacterController for physics, disable cameras
+                if (characterController != null) characterController.enabled = false;
+                transform.position = NetworkPosition;
+                transform.rotation = NetworkRotation;
+                if (characterController != null) characterController.enabled = true;
+
+                // Disable ALL Camera components (bot doesn't render), but keep GameObjects
+                // so the transform hierarchy is intact for weapon aiming
+                var botCameras = GetComponentsInChildren<Camera>(true);
+                foreach (var cam in botCameras)
+                    cam.enabled = false;
+
+                // Cache the camera transform for aim pivot (pitch rotation)
+                // Even though the Camera component is disabled, the transform hierarchy
+                // is used for weapon firePoint orientation
+                foreach (var cam in botCameras)
+                {
+                    if (cam.gameObject.name.Contains("PlayerCamera"))
+                    {
+                        cameraTransform = cam.transform;
+                        break;
+                    }
+                }
+
+                // Also disable AudioListeners on bot
+                foreach (var listener in GetComponentsInChildren<AudioListener>(true))
+                    listener.enabled = false;
+
+                // Cache CC dimensions for crouch
+                if (characterController != null)
+                {
+                    _standHeight = characterController.height;
+                    _standCenter = characterController.center;
+                }
+
+                currentYaw = NetworkRotation.eulerAngles.y;
+                currentPitch = 0f;
+            }
+            else if (HasInputAuthority)
             {
                 // Initialize [Networked] position so remote clients get correct spawn position immediately
                 // CRITICAL FIX: Do NOT overwrite NetworkPosition with transform.position here!
@@ -420,10 +481,56 @@ namespace ArtisansGuns.Game
             // Debug.Log($"Ã°Å¸â€œÂ· BackgroundCamera creada: depth={bgCam.depth}, clearFlags={bgCam.clearFlags}, cullingMask={bgCam.cullingMask}");
         }
 
+        private void OnEnable()
+        {
+            // Reset stale touch tracking when the component is re-enabled (e.g. after
+            // respawn). If a touch was active when the component was disabled (death),
+            // its Ended phase was never processed, leaving lookTouchId pointing to a
+            // dead touch ID. Without this reset, ProcessCameraLook ignores all new
+            // touches and the camera appears permanently stuck.
+            lookTouchId = -1;
+            isLookingAround = false;
+            cameraDelta = Vector2.zero;
+
+            // Force-clear crouch state on re-enable (death → respawn).
+            // Without this, dying while crouched leaves isCrouching=true permanently,
+            // causing NetworkAnimState to keep sending crouch states to remote clients.
+            ForceStand();
+        }
+
+        /// <summary>
+        /// Unconditionally resets crouch state to standing. Bypasses the guard in
+        /// SetCrouch so it works even when isCrouching is already false.
+        /// Called on respawn, OnEnable, and match reset.
+        /// </summary>
+        public void ForceStand()
+        {
+            if (!isCrouching) return;
+            isCrouching = false;
+            _crouchCamTargetY = STAND_CAM_Y;
+            NetworkAnimState = 0;
+            if (!IsBotControlled)
+                ArtisansGuns.UI.MobileControlsController.Instance?.SetCrouchMode(false);
+        }
+
         private void Update()
         {
-            // Solo procesar input para el jugador local
-            if (!HasInputAuthority) return;
+            // Solo procesar input para el jugador local (or bot on host)
+            bool canUpdate = HasInputAuthority || (IsBotControlled && HasStateAuthority);
+            if (!canUpdate) return;
+
+            // Bots: apply aim from BotBrain directly, skip touch processing
+            if (IsBotControlled)
+            {
+                currentYaw   = _botYaw;
+                currentPitch = _botPitch;
+                // Apply crouch intent
+                if (_botWantsCrouch && !isCrouching && isGrounded)
+                    ApplyCrouch();
+                else if (!_botWantsCrouch && isCrouching)
+                    ApplyStand();
+                return;
+            }
 
             // Ceremony freeze: skip camera look when inputs are frozen
             if (InputFrozen)
@@ -525,8 +632,9 @@ namespace ArtisansGuns.Game
         public override void FixedUpdateNetwork()
         {
             // En Shared Mode, cada cliente controla su propio player (HasInputAuthority)
-            // NO usar HasStateAuthority (solo el server lo tiene en Shared Mode)
-            if (!HasInputAuthority) return;
+            // Bots are controlled by the host (HasStateAuthority, no InputAuthority)
+            bool canSimulate = HasInputAuthority || (IsBotControlled && HasStateAuthority);
+            if (!canSimulate) return;
 
             // Ceremony freeze: skip all movement when inputs are frozen (3-2-1 countdown)
             if (InputFrozen) return;
@@ -535,6 +643,31 @@ namespace ArtisansGuns.Game
             // despawn but FixedUpdateNetwork still fires), skip all movement logic.
             // Without this guard, cc.Move() throws errors and gravity accumulates incorrectly.
             if (characterController == null || !characterController.enabled) return;
+
+            // ── Out-of-bounds safety net ──────────────────────────────────
+            // If the player falls below the map (ability knockback, physics glitch),
+            // silently teleport them back to a safe spawn point with immunity.
+            if (transform.position.y < -20f)
+            {
+                var netData = GetComponent<ArtisansGuns.Networking.PlayerNetworkData>();
+                int team = netData != null ? netData.Team : 0;
+                Vector3 safePos = GameManager.Instance != null
+                    ? GameManager.Instance.GetSafeSpawnPositionForTeam(team)
+                    : new Vector3(0f, 2f, 0f);
+
+                characterController.enabled = false;
+                transform.position = safePos;
+                characterController.enabled = true;
+                velocity = Vector3.zero;
+                NetworkPosition = safePos;
+
+                // Grant immunity so they don't get killed instantly on reappearing
+                var health = GetComponent<PlayerHealth>();
+                health?.RPC_StartImmunity();
+
+                Debug.LogWarning($"[PlayerController] Out-of-bounds rescue — teleported to {safePos}");
+                return;
+            }
 
             // Ground check
             isGrounded = characterController.isGrounded;
@@ -575,17 +708,24 @@ namespace ArtisansGuns.Game
                 velocity.y += gravity * Runner.DeltaTime;
             }
 
-            // Get movement input from UIToolkit virtual joystick
+            // Get movement input
+            if (IsBotControlled)
+            {
+                moveInput = _botMoveInput;
+                jumpInput = _botJumpInput;
+                _botJumpInput = false;
+            }
+            else
             {
                 moveInput = ArtisansGuns.UI.MobileControlsController.Instance != null
                     ? ArtisansGuns.UI.MobileControlsController.Instance.MoveInput
                     : Vector2.zero;
-
-                if (moveInput.magnitude > 0.01f)
-                    moveInput = moveInput.normalized;
-                else
-                    moveInput = Vector2.zero;
             }
+
+            if (moveInput.magnitude > 0.01f)
+                moveInput = moveInput.normalized;
+            else
+                moveInput = Vector2.zero;
 
             // Movement - relative to camera direction
             Vector3 move = new Vector3(moveInput.x, 0, moveInput.y);
@@ -595,7 +735,7 @@ namespace ArtisansGuns.Game
 
             // Crouch speed penalty: 45% of total speed while crouching
             // Damage slow: applied on top of crouch penalty
-            float effectiveSpeed = moveSpeed * (isCrouching ? 0.45f : 1f) * _damageSlowMultiplier;
+            float effectiveSpeed = moveSpeed * _momentumSpeedMultiplier * (isCrouching ? 0.45f : 1f) * _damageSlowMultiplier;
             characterController.Move(move * effectiveSpeed * Runner.DeltaTime);
 
             // Jump — blocked while crouching (press Stand to stand up first)
@@ -609,7 +749,13 @@ namespace ArtisansGuns.Game
             jumpInput = false; // consume once per tick
 
             // Apply velocity
-            characterController.Move(velocity * Runner.DeltaTime);
+            CollisionFlags moveFlags = characterController.Move(velocity * Runner.DeltaTime);
+
+            // Ceiling hit: kill upward velocity so the player bounces off immediately
+            if ((moveFlags & CollisionFlags.Above) != 0 && velocity.y > 0f)
+            {
+                velocity.y = 0f;
+            }
 
             // Aplicar rotaciÃƒÂ³n de cÃƒÂ¡mara para sincronizaciÃƒÂ³n de red
             // TambiÃƒÂ©n se aplica en Render() para visualizaciÃƒÂ³n suave entre ticks
@@ -642,33 +788,36 @@ namespace ArtisansGuns.Game
                         CROUCH_CAM_SPEED * Time.deltaTime);
                     cameraTransform.localPosition = new Vector3(0f, _crouchCamCurrentY, 0f);
 
-                    // Smooth CharacterController height/center (top-down only)
-                    if (characterController != null)
-                    {
-                        float targetH = isCrouching ? CROUCH_CC_HEIGHT : _standHeight;
-                        float newH = Mathf.MoveTowards(
-                            characterController.height, targetH,
-                            CROUCH_CC_SPEED * Time.deltaTime);
-                        float deltaH = newH - _standHeight; // negative when crouching
-                        characterController.height = newH;
-                        // Shift center down by half the height reduction so the
-                        // capsule shrinks from the top and feet stay on the ground.
-                        characterController.center = new Vector3(
-                            _standCenter.x,
-                            _standCenter.y + deltaH * 0.5f,
-                            _standCenter.z);
-                    }
-
                     // Cámara: pitch (arriba/abajo) + recoil offset
                     cameraTransform.localRotation = Quaternion.Euler(currentPitch + recoilPitchOffset, 0, 0);
                     
                     // Jugador: yaw (izquierda/derecha) + recoil offset
                     transform.rotation = Quaternion.Euler(0, currentYaw + recoilYawOffset, 0);
                 }
+                else if (IsBotControlled)
+                {
+                    // Bot: apply rotation directly (no camera transform)
+                    transform.rotation = Quaternion.Euler(0, currentYaw, 0);
+                }
+
+                // Smooth CharacterController height/center for crouch (both human & bot)
+                if (characterController != null)
+                {
+                    float targetH = isCrouching ? CROUCH_CC_HEIGHT : _standHeight;
+                    float newH = Mathf.MoveTowards(
+                        characterController.height, targetH,
+                        CROUCH_CC_SPEED * Time.deltaTime);
+                    float deltaH = newH - _standHeight;
+                    characterController.height = newH;
+                    characterController.center = new Vector3(
+                        _standCenter.x,
+                        _standCenter.y + deltaH * 0.5f,
+                        _standCenter.z);
+                }
 
                 // Update anim state every rendered frame for max responsiveness
                 // Re-read moveInput fresh so we don't use stale data
-                if (ArtisansGuns.UI.MobileControlsController.Instance != null)
+                if (!IsBotControlled && ArtisansGuns.UI.MobileControlsController.Instance != null)
                 {
                     var freshInput = ArtisansGuns.UI.MobileControlsController.Instance.MoveInput;
                     if (freshInput.magnitude > 0.01f)
@@ -693,6 +842,18 @@ namespace ArtisansGuns.Game
             jumpInput = jump;
         }
 
+        /// <summary>
+        /// Called every frame by BotBrain to feed movement, aiming, and crouch input.
+        /// </summary>
+        public void SetBotInput(Vector2 move, bool jump, float yaw, float pitch, bool wantsCrouch)
+        {
+            _botMoveInput   = move;
+            _botJumpInput   = jump;
+            _botYaw         = yaw;
+            _botPitch       = Mathf.Clamp(pitch, minPitch, maxPitch);
+            _botWantsCrouch = wantsCrouch;
+        }
+
         private void OnDestroy()
         {
             if (HasInputAuthority)
@@ -710,7 +871,7 @@ namespace ArtisansGuns.Game
         private void OnCrouchButton()
         {
             if (Object == null) return;                   // not spawned yet
-            if (isCrouching) return;
+            if (isCrouching) { SetCrouch(false); return; } // toggle: stand if already crouching
             if (!isGrounded) return;                      // airborne (jumping or falling)
             if (Time.time < _crouchCooldown) return;     // just stood up
             SetCrouch(true);
@@ -721,6 +882,11 @@ namespace ArtisansGuns.Game
             if (!isCrouching) return;                     // already standing — nothing to do
             SetCrouch(false);
         }
+
+        /// <summary>Bot-safe crouch toggle (called from BotBrain.Update).</summary>
+        public void ApplyCrouch() { if (!isCrouching && isGrounded) SetCrouch(true); }
+        /// <summary>Bot-safe stand toggle (called from BotBrain.Update).</summary>
+        public void ApplyStand() { if (isCrouching) SetCrouch(false); }
 
         private void SetCrouch(bool crouching)
         {
@@ -742,7 +908,9 @@ namespace ArtisansGuns.Game
                 NetworkAnimState = 0;             // Idle — refined next frame if moving
             }
 
-            ArtisansGuns.UI.MobileControlsController.Instance?.SetCrouchMode(crouching);
+            // Only update mobile controls UI for local player (not bots)
+            if (!IsBotControlled)
+                ArtisansGuns.UI.MobileControlsController.Instance?.SetCrouchMode(crouching);
         }
 
         private void OnDrawGizmos()
@@ -849,7 +1017,15 @@ namespace ArtisansGuns.Game
         public void UpdateWeaponSpeedModifier(float speedMultiplier)
         {
             moveSpeed = baseSpeed * speedMultiplier;
-            // Debug.Log($"âš¡ Movement speed updated: {baseSpeed} * {speedMultiplier} = {moveSpeed}");
+            // Debug.Log($"⚡ Movement speed updated: {baseSpeed} * {speedMultiplier} = {moveSpeed}");
+        }
+
+        /// <summary>
+        /// Set by MomentumManager — additive speed multiplier from kill streak.
+        /// </summary>
+        public void SetMomentumSpeedMultiplier(float multiplier)
+        {
+            _momentumSpeedMultiplier = multiplier;
         }
         
         /// <summary>
@@ -882,11 +1058,15 @@ namespace ArtisansGuns.Game
         private void UpdateNetworkAnimState()
         {
             // Jump: only when actually ascending with significant velocity
-            // DO NOT use (!isGrounded) alone — CC.isGrounded flickers and would override
-            // crouching states randomly, making CrunchWalking etc. never show.
             if (velocity.y > 1.0f)
             {
                 NetworkAnimState = 5;
+                return;
+            }
+            // Airborne but not ascending: force Idle (no walking/strafe in the air)
+            if (!isGrounded)
+            {
+                NetworkAnimState = 0; // Idle
                 return;
             }
             // Crouching sub-states

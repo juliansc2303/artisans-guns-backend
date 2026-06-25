@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using ArtisansGuns.Auth;
 
 namespace ArtisansGuns.Managers
@@ -16,6 +17,9 @@ namespace ArtisansGuns.Managers
         private const float MIN_SENSITIVITY = 1.0f;
         private const float MAX_SENSITIVITY = 100.0f;
         private const float DEFAULT_SENSITIVITY = 6.0f;
+
+        private bool renderShadows = true;
+        private const string SHADOWS_KEY = "render_shadows";
 
         // ParrelSync-safe key prefix (mirrors AuthManager's K() helper).
         // In clone editors, prefixed with "clone_" so each instance has its own prefs.
@@ -91,6 +95,9 @@ namespace ArtisansGuns.Managers
                     : DEFAULT_SENSITIVITY;
             }
             PlayerPrefs.SetFloat(PK(SENSITIVITY_KEY), mouseSensitivity);
+
+            // Load shadow setting from prefs
+            LoadShadowSetting();
         }
 
         private void SaveSettings()
@@ -144,6 +151,56 @@ namespace ArtisansGuns.Managers
         {
             float value = MIN_SENSITIVITY + (normalized * (MAX_SENSITIVITY - MIN_SENSITIVITY));
             SetMouseSensitivity(value);
+        }
+
+        // ─── Render Shadows ──────────────────────────────────────────────────
+
+        public event System.Action<bool> OnRenderShadowsChanged;
+
+        /// <summary>Returns whether shadows are enabled (default true).</summary>
+        public bool GetRenderShadows() => renderShadows;
+
+        public void SetRenderShadows(bool enabled)
+        {
+            renderShadows = enabled;
+            PlayerPrefs.SetInt(PK(SHADOWS_KEY), enabled ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplyShadows();
+            OnRenderShadowsChanged?.Invoke(renderShadows);
+        }
+
+        /// <summary>Load shadow setting from PlayerPrefs and apply immediately.</summary>
+        private void LoadShadowSetting()
+        {
+            renderShadows = PlayerPrefs.GetInt(PK(SHADOWS_KEY), 1) == 1;
+            ApplyShadows();
+        }
+
+        /// <summary>
+        /// Applies the shadow setting globally via the active URP pipeline asset.
+        /// Toggling mainLightCastShadows on the asset skips shadow map generation
+        /// entirely — immediate visual change and GPU savings on mobile.
+        /// </summary>
+        private void ApplyShadows()
+        {
+            var urpAsset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            if (urpAsset == null) return;
+
+            // Cache the original shadow distance so we can restore it when re-enabling
+            if (renderShadows)
+            {
+                // Restore: if shadow distance was zeroed, restore from PlayerPrefs cache
+                float saved = PlayerPrefs.GetFloat(PK("shadow_distance_backup"), 69f);
+                if (urpAsset.shadowDistance < 1f)
+                    urpAsset.shadowDistance = saved;
+            }
+            else
+            {
+                // Backup current distance before zeroing
+                if (urpAsset.shadowDistance > 0f)
+                    PlayerPrefs.SetFloat(PK("shadow_distance_backup"), urpAsset.shadowDistance);
+                urpAsset.shadowDistance = 0f;
+            }
         }
     }
 }

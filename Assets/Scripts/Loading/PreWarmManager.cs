@@ -67,6 +67,11 @@ namespace ArtisansGuns.Loading
         private int _step;
         private int _totalSteps;
 
+        /// <summary>Max milliseconds per frame during pre-warm. Keeps frames short
+        /// so NetworkRunner.Update() can send heartbeats to the Photon server.</summary>
+        private const float FrameBudgetMs = 8f;
+        private float _frameStartTime;
+
         // Tracks which character IDs have already been pre-warmed (avoids duplicate work).
         // When the game scales to many characters, startup only warms the local player's
         // character and common assets. Others are warmed on-demand when encountered.
@@ -331,21 +336,30 @@ namespace ArtisansGuns.Loading
             // ── 4. Pre-warm weapon prefabs ──
             UpdateProgress(0.1f, "LOADING WEAPONS...");
             yield return null;
+            _frameStartTime = Time.realtimeSinceStartup * 1000f;
 
             foreach (var weapon in allWeapons)
             {
                 if (weapon == null) continue;
                 Debug.Log($"[PreWarmManager] Pre-warming weapon: {weapon.weaponName}");
 
-                // Prefabs: instantiate off-screen, wait one frame (forces shader compile + mesh upload), destroy
-                yield return StartCoroutine(WarmPrefab(weapon.weaponPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.muzzleFlashPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.tpvMuzzleFlashPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.impactEffectPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.headBloodPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.bodyBloodPrefab));
-                yield return StartCoroutine(WarmPrefab(weapon.prefabWeaponTPV));
-                yield return StartCoroutine(WarmPrefab(weapon.tpvTrailPrefab));
+                // Prefabs: instantiate off-screen, force shader compile + mesh upload, destroy
+                WarmPrefabSync(weapon.weaponPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.muzzleFlashPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.tpvMuzzleFlashPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.impactEffectPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.headBloodPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.bodyBloodPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.prefabWeaponTPV);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(weapon.tpvTrailPrefab);
+                yield return StartCoroutine(BudgetYield());
 
                 // Audio clips: play at volume 0 to force decompression
                 WarmAudio(weapon.fireSound);
@@ -368,7 +382,8 @@ namespace ArtisansGuns.Loading
                     foreach (var ov in weapon.tagImpactOverrides)
                     {
                         if (ov == null) continue;
-                        yield return StartCoroutine(WarmPrefab(ov.impactEffectPrefab));
+                        WarmPrefabSync(ov.impactEffectPrefab);
+                        yield return StartCoroutine(BudgetYield());
                         WarmAudio(ov.impactSound);
                     }
                 }
@@ -385,13 +400,14 @@ namespace ArtisansGuns.Loading
             // ── 5. Pre-warm character assets (abilities, death VFX) ──
             UpdateProgress(_step / (float)_totalSteps, "LOADING ABILITIES...");
             yield return null;
+            _frameStartTime = Time.realtimeSinceStartup * 1000f;
 
             foreach (var character in allCharacters)
             {
                 if (character == null) continue;
                 Debug.Log($"[PreWarmManager] Pre-warming character: {character.characterId}");
 
-                yield return StartCoroutine(WarmCharacterCoroutine(character));
+                yield return StartCoroutine(WarmCharacterBudgeted(character));
                 _warmedCharacters.Add(character.characterId);
             }
 
@@ -477,19 +493,13 @@ namespace ArtisansGuns.Loading
                 yield return StartCoroutine(WarmPrefab(smoke.grenadePrefabTPV));
             }
 
-            // Ability 2 (VisionPulse) — no prefabs, nothing to pre-warm
+            // Ability 2 (Dash) — no prefabs, nothing to pre-warm
 
             // Ability 1 (TsunamiWave — Pato)
             if (character.ability1 is TsunamiWaveAbilityConfig tsunami)
             {
                 yield return StartCoroutine(WarmPrefab(tsunami.wavePrefab));
                 if (tsunami.spawnSound != null) WarmAudio(tsunami.spawnSound);
-            }
-
-            // Ability 2 (WaterSuperJump — Pato)
-            if (character.ability2 is WaterSuperJumpAbilityConfig superJump)
-            {
-                if (superJump.jumpSound != null) WarmAudio(superJump.jumpSound);
             }
 
             // Ultimate (CrimsonUltimate — Crimson)
@@ -519,8 +529,129 @@ namespace ArtisansGuns.Loading
         // ──────────────────────────────────────────────
 
         /// <summary>
+        /// Yields a frame ONLY if the current frame has exceeded FrameBudgetMs.
+        /// This keeps the main thread responsive for NetworkRunner.Update() heartbeats
+        /// while still batching lightweight prefabs in the same frame.
+        /// </summary>
+        private IEnumerator BudgetYield()
+        {
+            float elapsed = Time.realtimeSinceStartup * 1000f - _frameStartTime;
+            if (elapsed >= FrameBudgetMs)
+            {
+                yield return null; // actually yield a frame
+                _frameStartTime = Time.realtimeSinceStartup * 1000f;
+            }
+        }
+
+        /// <summary>
+        /// Synchronous prefab warm: instantiate, force shader compile, destroy immediately.
+        /// No per-prefab frame wait — the caller manages frame yields via BudgetYield().
+        /// </summary>
+        private void WarmPrefabSync(GameObject prefab)
+        {
+            if (prefab == null) return;
+
+            Vector3 offScreen = new Vector3(0f, offScreenY, 0f);
+            GameObject instance = null;
+
+            try
+            {
+                instance = Instantiate(prefab, offScreen, Quaternion.identity);
+                instance.name = $"[PreWarm] {prefab.name}";
+
+                foreach (var src in instance.GetComponentsInChildren<AudioSource>(true))
+                {
+                    src.mute = true;
+                    src.volume = 0f;
+                    src.enabled = false;
+                }
+
+                foreach (var ps in instance.GetComponentsInChildren<ParticleSystem>(true))
+                {
+                    var emission = ps.emission;
+                    emission.enabled = false;
+                }
+
+                foreach (var vfx in instance.GetComponentsInChildren<VisualEffect>(true))
+                {
+                    vfx.Play();
+                    vfx.Simulate(0.016f);
+                }
+
+                foreach (var rend in instance.GetComponentsInChildren<Renderer>(true))
+                    rend.enabled = false;
+
+                foreach (var nb in instance.GetComponentsInChildren<Fusion.NetworkBehaviour>(true))
+                    nb.enabled = false;
+                foreach (var no in instance.GetComponentsInChildren<Fusion.NetworkObject>(true))
+                    no.enabled = false;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PreWarmManager] Failed to instantiate {prefab.name}: {e.Message}");
+            }
+
+            if (instance != null) Destroy(instance);
+
+            _step++;
+            UpdateProgress(_step / (float)_totalSteps);
+        }
+
+        /// <summary>
+        /// Budgeted version of WarmCharacterCoroutine for use during startup pre-warm.
+        /// Uses WarmPrefabSync + BudgetYield instead of coroutine yields per prefab.
+        /// </summary>
+        private IEnumerator WarmCharacterBudgeted(CharacterConfig character)
+        {
+            WarmPrefabSync(character.deathVFXPrefab);
+            yield return StartCoroutine(BudgetYield());
+
+            if (character.ability1 is SmokeGrenadeAbilityConfig smoke)
+            {
+                WarmPrefabSync(smoke.grenadeFPVPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(smoke.grenadeProjectilePrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(smoke.smokePrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(smoke.grenadePrefabTPV);
+                yield return StartCoroutine(BudgetYield());
+            }
+
+            if (character.ability1 is TsunamiWaveAbilityConfig tsunami)
+            {
+                WarmPrefabSync(tsunami.wavePrefab);
+                yield return StartCoroutine(BudgetYield());
+                if (tsunami.spawnSound != null) WarmAudio(tsunami.spawnSound);
+            }
+
+            if (character.ultimate is CrimsonUltimateAbilityConfig ult)
+            {
+                WarmPrefabSync(ult.ultimateFPVPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(ult.ultimateProjectilePrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(ult.ultimateEffectPrefab);
+                yield return StartCoroutine(BudgetYield());
+                WarmPrefabSync(ult.ultimatePrefabTPV);
+                yield return StartCoroutine(BudgetYield());
+            }
+
+            if (character.tpvMesh != null) _ = character.tpvMesh.vertexCount;
+            if (character.armsMesh != null) _ = character.armsMesh.vertexCount;
+
+            if (character.tpvMaterials != null)
+                foreach (var mat in character.tpvMaterials)
+                    if (mat != null) _ = mat.shader.name;
+            if (character.armsMaterials != null)
+                foreach (var mat in character.armsMaterials)
+                    if (mat != null) _ = mat.shader.name;
+        }
+
+        /// <summary>
         /// Instantiate a prefab far off-screen, wait one frame (shader compile + GPU upload),
         /// then destroy it. Updates _step class field.
+        /// Used by on-demand character warming (EnsureCharacterPreWarmed).
         /// </summary>
         private IEnumerator WarmPrefab(GameObject prefab)
         {

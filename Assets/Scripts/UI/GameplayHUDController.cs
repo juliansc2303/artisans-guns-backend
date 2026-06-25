@@ -6,7 +6,9 @@ using System.Collections;
 using System.Text;
 using ArtisansGuns.Networking;
 using ArtisansGuns.Auth;
+using ArtisansGuns.Managers;
 using Fusion;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -89,6 +91,14 @@ namespace ArtisansGuns.UI
         private bool gsmDiagLogged = false; // one-shot diagnostic
         private bool teamClassApplied = false; // one-shot team color
         private const int MIN_PLAYERS_TO_START = 2;
+
+        // Countdown sound + display-time tracking
+        private int _lastCeremonyCountdown = -1;
+        private float _countdownShowUntil = -1f;   // minimum Time.time until which the current number stays
+        private int _displayedCountdown = -1;       // value currently shown on screen
+        private AudioClip _startingGameClip;
+        private AudioClip _gameStartedClip;
+        private const float COUNTDOWN_MIN_DISPLAY = 0.85f; // seconds each number stays visible
         
         // Join / Leave Notifications
         private VisualElement notificationContainer;
@@ -195,7 +205,7 @@ namespace ArtisansGuns.UI
             teamAScoreLabel = root.Q<Label>("TeamAScore");
             teamBScoreLabel = root.Q<Label>("TeamBScore");
             goalTextLabel = root.Q<Label>("GoalText");
-            if (goalTextLabel != null) goalTextLabel.text = "KILLS";
+            if (goalTextLabel != null) goalTextLabel.text = T("KILLS");
             
             // Cache post-match overlay
             postMatchOverlay = root.Q<VisualElement>("PostMatchOverlay");
@@ -250,6 +260,7 @@ namespace ArtisansGuns.UI
             // Register settings button to open unified settings panel
             settingsButton?.RegisterCallback<ClickEvent>(evt => 
             {
+                ArtisansGuns.Managers.SoundManager.Instance?.PlayClick();
                 if (settingsUIController != null)
                 {
                     settingsUIController.ShowSettings();
@@ -260,14 +271,22 @@ namespace ArtisansGuns.UI
             });
             
             // Register scores button
-            scoresButton?.RegisterCallback<ClickEvent>(evt => OpenScoresPanel());
-            scoresCloseButton?.RegisterCallback<ClickEvent>(evt => CloseScoresPanel());
+            scoresButton?.RegisterCallback<ClickEvent>(evt => { ArtisansGuns.Managers.SoundManager.Instance?.PlayClick(); OpenScoresPanel(); });
+            scoresCloseButton?.RegisterCallback<ClickEvent>(evt => { ArtisansGuns.Managers.SoundManager.Instance?.PlayClick(); CloseScoresPanel(); });
+
+            // Register click sounds for ALL buttons inside the Settings panel
+            // (close, sliders, toggles, exit, confirm, language, etc.)
+            var settingsPanelRoot = root.Q<VisualElement>("SettingsPanel");
+            ArtisansGuns.Managers.SoundManager.Instance?.RegisterGlobalClickSounds(settingsPanelRoot);
             
             // Initialize scores overlay as hidden
             if (scoresOverlay != null)
             {
                 scoresOverlay.AddToClassList("hidden");
             }
+
+            LocalizationManager.OnLanguageChanged += LocalizeUI;
+            LocalizeUI();
         }
         
         /// <summary>
@@ -415,8 +434,17 @@ namespace ArtisansGuns.UI
             }
             
             // ── Match already in progress → hide everything, unfreeze ──
+            // Delay dismissal if "GO!" hasn't been on screen long enough
             if (gsm != null && gsm.GameInProgress)
             {
+                if (Time.time < _countdownShowUntil && _displayedCountdown == 0)
+                {
+                    // Still showing "GO!" — keep overlay visible a bit longer
+                    if (ceremonyCountdownOverlay != null) ceremonyCountdownOverlay.RemoveFromClassList("hidden");
+                    if (ceremonyCountdown != null) ceremonyCountdown.text = T("GO!");
+                    return;
+                }
+
                 if (ceremonyBanner != null) ceremonyBanner.AddToClassList("hidden");
                 if (ceremonyCountdownOverlay != null)
                 {
@@ -429,7 +457,9 @@ namespace ArtisansGuns.UI
                 return;
             }
             
-            int playerCount = NetworkManager.Instance != null ? NetworkManager.Instance.GetPlayerCount() : 0;
+            // Count real players + bots (bots use PlayerRef.None so ActivePlayers doesn't include them)
+            int playerCount = (NetworkManager.Instance?.Runner?.ActivePlayers.Count() ?? 0)
+                            + (ArtisansGuns.AI.BotManager.Instance?.TotalBotCount ?? 0);
 
             // ── Countdown is running (3-2-1 freeze) ── 
             if (gsm != null && gsm.CountdownStarted && gsm.CountdownValue >= 0)
@@ -462,11 +492,40 @@ namespace ArtisansGuns.UI
                 
                 // Show countdown overlay with big number
                 if (ceremonyCountdownOverlay != null) ceremonyCountdownOverlay.RemoveFromClassList("hidden");
-                if (ceremonyCountdown != null) ceremonyCountdown.text = gsm.CountdownValue > 0 ? gsm.CountdownValue.ToString() : "GO!";
+
+                // ── Countdown value with minimum display time + sounds ──
+                int rawValue = gsm.CountdownValue;
+
+                // Detect new value from network
+                if (rawValue != _lastCeremonyCountdown)
+                {
+                    // If the current displayed number hasn't been on screen long enough, queue the new one
+                    if (Time.time < _countdownShowUntil && _displayedCountdown > rawValue && rawValue >= 0)
+                    {
+                        // Don't update yet — keep showing _displayedCountdown
+                    }
+                    else
+                    {
+                        _displayedCountdown = rawValue;
+                        _countdownShowUntil = Time.time + COUNTDOWN_MIN_DISPLAY;
+                        _lastCeremonyCountdown = rawValue;
+                        PlayCeremonyCountdownSound(rawValue);
+                    }
+                }
+                // Check if minimum display time expired and network has moved ahead
+                else if (Time.time >= _countdownShowUntil && _displayedCountdown != rawValue)
+                {
+                    _displayedCountdown = rawValue;
+                    _countdownShowUntil = Time.time + COUNTDOWN_MIN_DISPLAY;
+                    PlayCeremonyCountdownSound(rawValue);
+                }
+
+                if (ceremonyCountdown != null)
+                    ceremonyCountdown.text = _displayedCountdown > 0 ? _displayedCountdown.ToString() : T("GO!");
                 
                 // Update overlay inner labels
-                if (ceremonyOverlayStatus != null) ceremonyOverlayStatus.text = "MATCH STARTING";
-                if (ceremonyOverlayPlayers != null) ceremonyOverlayPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} PLAYERS";
+                if (ceremonyOverlayStatus != null) ceremonyOverlayStatus.text = T("MATCH STARTING");
+                if (ceremonyOverlayPlayers != null) ceremonyOverlayPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} {T("PLAYERS")}";
                 
                 return;
             }
@@ -476,8 +535,8 @@ namespace ArtisansGuns.UI
             {
                 if (ceremonyBanner != null) ceremonyBanner.RemoveFromClassList("hidden");
                 if (ceremonyCountdownOverlay != null) ceremonyCountdownOverlay.AddToClassList("hidden");
-                if (ceremonyStatus != null) ceremonyStatus.text = $"STARTING IN {gsm.PreStartSecondsLeft}...";
-                if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} PLAYERS";
+                if (ceremonyStatus != null) ceremonyStatus.text = $"{T("STARTING IN")} {gsm.PreStartSecondsLeft}...";
+                if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} {T("PLAYERS")}";
                 ArtisansGuns.Game.PlayerController.InputFrozen = false;
                 return;
             }
@@ -486,8 +545,8 @@ namespace ArtisansGuns.UI
             if (playerCount >= MIN_PLAYERS_TO_START)
             {
                 if (ceremonyBanner != null) ceremonyBanner.RemoveFromClassList("hidden");
-                if (ceremonyStatus != null) ceremonyStatus.text = "GET READY...";
-                if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} PLAYERS";
+                if (ceremonyStatus != null) ceremonyStatus.text = T("GET READY...");
+                if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} {T("PLAYERS")}";
 
                 // One-shot diagnostic: log GSM state when we first have enough players
                 if (!gsmDiagLogged)
@@ -522,9 +581,34 @@ namespace ArtisansGuns.UI
             // ── Warmup: waiting for players, free movement ──
             if (ceremonyBanner != null) ceremonyBanner.RemoveFromClassList("hidden");
             if (ceremonyCountdownOverlay != null) ceremonyCountdownOverlay.AddToClassList("hidden");
-            if (ceremonyStatus != null) ceremonyStatus.text = "WAITING FOR PLAYERS...";
-            if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} PLAYERS";
+            if (ceremonyStatus != null) ceremonyStatus.text = T("WAITING FOR PLAYERS...");
+            if (ceremonyPlayers != null) ceremonyPlayers.text = $"{playerCount} / {MIN_PLAYERS_TO_START} {T("PLAYERS")}";
             ArtisansGuns.Game.PlayerController.InputFrozen = false;
+        }
+
+        /// <summary>
+        /// Plays countdown sounds: StartingGame.wav with rising pitch for 3/2/1,
+        /// GameStarted.wav for GO! (0).
+        /// </summary>
+        private void PlayCeremonyCountdownSound(int value)
+        {
+            if (_startingGameClip == null)
+                _startingGameClip = Resources.Load<AudioClip>("Sounds/StartingGame");
+            if (_gameStartedClip == null)
+                _gameStartedClip = Resources.Load<AudioClip>("Sounds/GameStarted");
+
+            var sm = ArtisansGuns.Managers.SoundManager.Instance;
+            if (sm == null) return;
+
+            if (value > 0)
+            {
+                float pitch = 0.8f + (3 - value) * 0.2f;
+                sm.PlaySFXWithPitch(_startingGameClip, pitch);
+            }
+            else if (value == 0)
+            {
+                sm.PlaySFXWithPitch(_gameStartedClip, 1f);
+            }
         }
         
         private void FindLocalPlayer()
@@ -760,9 +844,17 @@ namespace ArtisansGuns.UI
             
             row.Add(icon);
             row.Add(nameLabel);
-            row.Add(kd);
-            row.Add(hsLabel);
-            row.Add(streakLabel);
+            
+            // Stats container — pushed to right edge
+            var stats = new VisualElement();
+            stats.style.flexDirection = FlexDirection.Row;
+            stats.style.alignItems = Align.Center;
+            stats.style.marginLeft = StyleKeyword.Auto;
+            stats.style.flexShrink = 0;
+            stats.Add(kd);
+            stats.Add(hsLabel);
+            stats.Add(streakLabel);
+            row.Add(stats);
             
             return row;
         }
@@ -794,16 +886,23 @@ namespace ArtisansGuns.UI
         {
             var header = new VisualElement();
             header.AddToClassList("scores-player-row");
-            header.style.justifyContent = Justify.FlexEnd;
-            header.style.paddingRight = 4;
+            header.style.paddingRight = 8;
             header.style.marginBottom = 4;
             header.style.borderBottomWidth = 1;
             header.style.borderBottomColor = new UnityEngine.Color(1f, 1f, 1f, 0.15f);
+            header.style.backgroundColor = UnityEngine.Color.clear;
+            
+            // Stats container — same layout as player rows, pushed right
+            var stats = new VisualElement();
+            stats.style.flexDirection = FlexDirection.Row;
+            stats.style.alignItems = Align.Center;
+            stats.style.marginLeft = StyleKeyword.Auto;
+            stats.style.flexShrink = 0;
             
             var kdHeader = new VisualElement();
             kdHeader.AddToClassList("scores-kd-container");
             
-            var kLabel = new Label("K");
+            var kLabel = new Label(T("K"));
             kLabel.AddToClassList("scores-kills");
             kLabel.style.fontSize = 11;
             kLabel.style.color = new UnityEngine.Color(1f, 1f, 1f, 0.5f);
@@ -811,7 +910,7 @@ namespace ArtisansGuns.UI
             var sepLabel = new Label("/");
             sepLabel.AddToClassList("scores-separator");
             
-            var dLabel = new Label("D");
+            var dLabel = new Label(T("D"));
             dLabel.AddToClassList("scores-deaths");
             dLabel.style.fontSize = 11;
             dLabel.style.color = new UnityEngine.Color(1f, 1f, 1f, 0.5f);
@@ -820,19 +919,20 @@ namespace ArtisansGuns.UI
             kdHeader.Add(sepLabel);
             kdHeader.Add(dLabel);
             
-            var hsHeader = new Label("HS");
+            var hsHeader = new Label(T("HS"));
             hsHeader.AddToClassList("scores-stat-cell");
             hsHeader.style.fontSize = 11;
             hsHeader.style.color = new UnityEngine.Color(1f, 1f, 1f, 0.5f);
             
-            var streakHeader = new Label("STR");
+            var streakHeader = new Label(T("STR"));
             streakHeader.AddToClassList("scores-stat-cell");
             streakHeader.style.fontSize = 11;
             streakHeader.style.color = new UnityEngine.Color(1f, 1f, 1f, 0.5f);
             
-            header.Add(kdHeader);
-            header.Add(hsHeader);
-            header.Add(streakHeader);
+            stats.Add(kdHeader);
+            stats.Add(hsHeader);
+            stats.Add(streakHeader);
+            header.Add(stats);
             return header;
         }
         
@@ -893,7 +993,7 @@ namespace ArtisansGuns.UI
                 yield return new WaitForSeconds(0.2f);
             }
             
-            ShowNotification($"{playerName ?? "A PLAYER"} JOINED THE ROOM");
+            ShowNotification($"{playerName ?? T("A PLAYER")} {T("JOINED THE ROOM")}");
         }
         
         private void OnNetworkPlayerLeft(PlayerRef player)
@@ -922,10 +1022,10 @@ namespace ArtisansGuns.UI
                     playerName = cached.Username;
             }
             
-            ShowNotification($"{(string.IsNullOrEmpty(playerName) ? "A PLAYER" : playerName)} LEFT THE ROOM");
+            ShowNotification($"{(string.IsNullOrEmpty(playerName) ? T("A PLAYER") : playerName)} {T("LEFT THE ROOM")}");
         }
         
-        private void ShowNotification(string text)
+        public void ShowNotification(string text)
         {
             if (notificationContainer == null) return;
             
@@ -1030,7 +1130,7 @@ namespace ArtisansGuns.UI
             Time.fixedDeltaTime = 0.02f * SLOWMO_TIMESCALE;
             
             // Determine result
-            string resultText = "MATCH OVER";
+            string resultText = T("MATCH OVER");
             string resultClass = "ceremony-draw";
             bool isVictory = false;
             if (localPlayer != null && localPlayer.TeamAssigned)
@@ -1039,18 +1139,18 @@ namespace ArtisansGuns.UI
                 byte result = gsm != null ? gsm.MatchResult : (byte)0;
                 if (result == 3)
                 {
-                    resultText = "EMPATE";
+                    resultText = T("DRAW");
                     resultClass = "ceremony-draw";
                 }
                 else if ((result == 1 && myTeam == 0) || (result == 2 && myTeam == 1))
                 {
-                    resultText = "Victory";
+                    resultText = T("Victory");
                     resultClass = "ceremony-victory";
                     isVictory = true;
                 }
                 else
                 {
-                    resultText = "Defeat";
+                    resultText = T("Defeat");
                     resultClass = "ceremony-defeat";
                 }
             }
@@ -1117,12 +1217,18 @@ namespace ArtisansGuns.UI
             // Populate scoreboard data
             // Re-derive the uppercase label for the scoreboard banner
             string bannerText = resultText;
-            if (resultText == "Victory") bannerText = "VICTORIA";
-            else if (resultText == "Defeat") bannerText = "DERROTA";
+            if (resultClass == "ceremony-victory") bannerText = T("Victory").ToUpperInvariant();
+            else if (resultClass == "ceremony-defeat") bannerText = T("Defeat").ToUpperInvariant();
+            else if (resultClass == "ceremony-draw") bannerText = T("DRAW");
             if (postMatchResult != null) postMatchResult.text = bannerText;
             if (postMatchScoreA != null) postMatchScoreA.text = teamAKills.ToString();
             if (postMatchScoreB != null) postMatchScoreB.text = teamBKills.ToString();
             PopulatePostMatchScoreboard();
+
+            // Scoreboard has been read — bots can be safely despawned now
+            var botMgr = ArtisansGuns.AI.BotManager.Instance;
+            if (botMgr != null)
+                botMgr.DelayedRemoveAllBots(2f);
             
             // Send match results to backend (local player only)
             if (localPlayer != null && localPlayer.Object != null && localPlayer.Object.HasInputAuthority)
@@ -1135,9 +1241,9 @@ namespace ArtisansGuns.UI
             {
                 postMatchOverlay.RemoveFromClassList("hidden");
                 postMatchOverlay.pickingMode = PickingMode.Position;
-                if (resultText == "Victory")
+                if (resultClass == "ceremony-victory")
                     postMatchOverlay.AddToClassList("post-match-victory");
-                else if (resultText == "Defeat")
+                else if (resultClass == "ceremony-defeat")
                     postMatchOverlay.AddToClassList("post-match-defeat");
                 else
                     postMatchOverlay.AddToClassList("post-match-draw");
@@ -1380,8 +1486,12 @@ namespace ArtisansGuns.UI
             var coinsLabel = new Label($"+{coins}");
             coinsLabel.AddToClassList("pm-coins");
             
-            row.Add(icon);
-            row.Add(nameLabel);
+            var info = new VisualElement();
+            info.AddToClassList("pm-player-info");
+            info.Add(icon);
+            info.Add(nameLabel);
+
+            row.Add(info);
             row.Add(killsLabel);
             row.Add(deathsLabel);
             row.Add(hsLabel);
@@ -1517,14 +1627,14 @@ namespace ArtisansGuns.UI
             rewardsContainer.style.paddingTop = 8;
             rewardsContainer.style.paddingBottom = 8;
             
-            var xpLabel = new Label($"+{response.xpEarned} XP");
+            var xpLabel = new Label($"+{response.xpEarned} {T("XP")}");
             xpLabel.style.color = new Color(0.3f, 0.9f, 1f);
             xpLabel.style.fontSize = 18;
             xpLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             xpLabel.style.marginRight = 20;
             rewardsContainer.Add(xpLabel);
             
-            var coinsLabel = new Label($"+{response.coinsEarned} Coins");
+            var coinsLabel = new Label($"+{response.coinsEarned} {T("Coins")}");
             coinsLabel.style.color = new Color(1f, 0.85f, 0.2f);
             coinsLabel.style.fontSize = 18;
             coinsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -1533,7 +1643,7 @@ namespace ArtisansGuns.UI
             
             if (response.diamondsEarned > 0)
             {
-                var diamondLabel = new Label($"+{response.diamondsEarned} Diamonds!");
+                var diamondLabel = new Label($"+{response.diamondsEarned} {T("Diamonds!")}");
                 diamondLabel.style.color = new Color(0.6f, 0.4f, 1f);
                 diamondLabel.style.fontSize = 18;
                 diamondLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -1542,7 +1652,7 @@ namespace ArtisansGuns.UI
             
             if (response.newLevel > response.oldLevel)
             {
-                var lvlUpLabel = new Label($"  LEVEL UP! → {response.newLevel}");
+                var lvlUpLabel = new Label($"  {T("LEVEL UP!")} → {response.newLevel}");
                 lvlUpLabel.style.color = new Color(1f, 0.6f, 0f);
                 lvlUpLabel.style.fontSize = 20;
                 lvlUpLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -1555,11 +1665,43 @@ namespace ArtisansGuns.UI
         private void OnDisable()
         {
             UnsubscribeFromNetworkEvents();
+            LocalizationManager.OnLanguageChanged -= LocalizeUI;
             
             // Safety: restore timeScale and audio in case ceremony was interrupted
             Time.timeScale = 1f;
             Time.fixedDeltaTime = 0.02f;
             AudioListener.volume = 1f;
+        }
+
+        private void LocalizeUI()
+        {
+            var root = uiDocument?.rootVisualElement;
+            if (root == null) return;
+
+            // Scores button & overlay title
+            var scoresLabel = scoresButton?.Q<Label>();
+            if (scoresLabel != null) scoresLabel.text = T("SCORES");
+            var scoreboardTitle = root.Q<Label>("ScoreboardTitle");
+            if (scoreboardTitle != null) scoreboardTitle.text = T("SCOREBOARD");
+
+            // Team labels
+            var teamALabel = root.Q<Label>("TeamALabel");
+            if (teamALabel != null) teamALabel.text = T("TEAM A");
+            var teamBLabel = root.Q<Label>("TeamBLabel");
+            if (teamBLabel != null) teamBLabel.text = T("TEAM B");
+
+            // Goal text
+            if (goalTextLabel != null) goalTextLabel.text = T("KILLS");
+
+            // Exit match dialog
+            var exitTitle = root.Q<Label>("ExitMatchTitle");
+            if (exitTitle != null) exitTitle.text = T("EXIT MATCH?");
+            var exitMsg = root.Q<Label>("ExitMatchMessage");
+            if (exitMsg != null) exitMsg.text = T("You won't receive rewards if you leave now.");
+            var leaveLabel = root.Q<Button>("LeaveButton")?.Q<Label>();
+            if (leaveLabel != null) leaveLabel.text = T("LEAVE");
+            var stayLabel = root.Q<Button>("StayButton")?.Q<Label>();
+            if (stayLabel != null) stayLabel.text = T("STAY");
         }
     }
 }

@@ -175,8 +175,8 @@
 
 /* WEAPON CARD */
 .weapon-card {
-    width: 400px;
-    height: 225px;
+    width: 30%;
+    height: 180px;
     background-color: rgba(10, 10, 16, 0.75);
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.08);
@@ -330,8 +330,8 @@
 
 /* KNIFE SKIN CARD */
 .knife-skin-card {
-    width: 400px;
-    height: 225px;
+    width: 30%;
+    height: 180px;
     background-color: rgba(10, 10, 16, 0.75);
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.08);
@@ -442,8 +442,8 @@
 }
 
 .weapon-skin-card {
-    width: 400px;
-    height: 225px;
+    width: 30%;
+    height: 180px;
     background-color: rgba(10, 10, 16, 0.75);
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.08);

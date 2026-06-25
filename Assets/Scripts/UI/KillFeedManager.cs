@@ -46,6 +46,8 @@ namespace ArtisansGuns.UI
         {
             { "talon_ar",      "Icons/Talon-ARWhiteIcon"      },
             { "bolt",          "Icons/BoltWhiteIcon"           },
+            { "onyx",          "Icons/OnyxWhiteIcon"           },
+            { "titan",         "Icons/TitanWhiteIcon"          },
             { "knife",         "Icons/WhiteIconDefaultKnife"   },
             { "default_knife", "Icons/WhiteIconDefaultKnife"   },
         };
@@ -134,6 +136,12 @@ namespace ArtisansGuns.UI
         public void ShowKill(string killerName, string weaponId, string victimName,
                              bool isHeadshot = false, int killerTeam = 0, int victimTeam = 1)
         {
+            // After a scene transition the old UIDocument is destroyed, but this
+            // DontDestroyOnLoad singleton keeps its stale killFeedContainer reference.
+            // Detect that by checking if the element is still attached to a live panel.
+            if (initialized && (killFeedContainer == null || killFeedContainer.panel == null))
+                initialized = false;
+
             if (!initialized)
             {
                 TryInitialize();

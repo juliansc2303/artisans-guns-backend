@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Fusion;
 using ArtisansGuns.Game;
 using ArtisansGuns.Networking;
 
@@ -58,7 +59,8 @@ namespace ArtisansGuns.Abilities
 
         private void Update()
         {
-            _timer += Time.deltaTime;
+            // Use unscaledDeltaTime so the wave is immune to hitpause timeScale changes
+            _timer += Time.unscaledDeltaTime;
 
             if (_timer >= waveDuration)
             {
@@ -67,7 +69,7 @@ namespace ArtisansGuns.Abilities
             }
 
             // Move forward (XZ only, Y stays fixed)
-            Vector3 delta = moveDirection * waveSpeed * Time.deltaTime;
+            Vector3 delta = moveDirection * waveSpeed * Time.unscaledDeltaTime;
             delta.y = 0f;
             transform.position += delta;
         }
@@ -86,14 +88,17 @@ namespace ArtisansGuns.Abilities
             var netData = health.GetComponent<PlayerNetworkData>();
             if (netData == null || netData.Object == null) return;
 
-            int playerId = netData.Object.InputAuthority.PlayerId;
+            // Use instance ID for bots (all share PlayerId 0) so each gets a unique key
+            bool isBot = netData.Object.InputAuthority == PlayerRef.None;
+            int uniqueId = isBot ? health.gameObject.GetInstanceID()
+                                 : netData.Object.InputAuthority.PlayerId;
 
             // Skip the caster — they don't flash themselves
-            if (netData.Object.InputAuthority == casterRef) return;
+            if (!isBot && netData.Object.InputAuthority == casterRef) return;
 
             // Skip if already flashed by this wave
-            if (_alreadyFlashed.Contains(playerId)) return;
-            _alreadyFlashed.Add(playerId);
+            if (_alreadyFlashed.Contains(uniqueId)) return;
+            _alreadyFlashed.Add(uniqueId);
 
             // Skip same-team players (only flash ENEMIES)
             var casterData = FindCasterNetworkData();
@@ -105,6 +110,11 @@ namespace ArtisansGuns.Abilities
             {
                 FlashEffect.ApplyFlash(flashDuration, health.GetComponent<PlayerSetup>());
             }
+
+            // ── Apply flash to bot AI (bots have no local client for FPV flash) ──
+            var botBrain = health.GetComponent<ArtisansGuns.AI.BotBrain>();
+            if (botBrain != null)
+                botBrain.ApplyFlashBlind(flashDuration);
 
             // ── Activate FlashFeedback VFX on all clients for this victim
             // (except the victim — they shouldn't see their own feedback VFX)
@@ -167,7 +177,7 @@ namespace ArtisansGuns.Abilities
         private static System.Collections.IEnumerator DisableVFXAfterDelay(
             UnityEngine.VFX.VisualEffect vfx, float delay)
         {
-            yield return new WaitForSeconds(delay);
+            yield return new WaitForSecondsRealtime(delay);
             if (vfx != null)
             {
                 vfx.Stop();

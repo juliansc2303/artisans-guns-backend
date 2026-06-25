@@ -158,7 +158,15 @@ namespace ArtisansGuns.Characters
                 Debug.LogWarning($"[CharacterSetupHandler] tpvSkinnedMeshRenderer is null — assign it in the PlayerSetup Inspector.");
             }
 
-            if (!applyArms) return;
+            if (!applyArms)
+            {
+                // If immunity is active, the TPV mesh swap above overwrote the immunity material.
+                // Re-snapshot the correct character materials and re-apply immunity visual.
+                var healthRemote = GetComponent<ArtisansGuns.Game.PlayerHealth>();
+                if (healthRemote != null && healthRemote.IsImmune)
+                    healthRemote.RefreshImmunityMaterials();
+                return;
+            }
 
             // Arms (FPV): local player only.
             if (playerSetup.armsSkinnedMeshRenderer != null)
@@ -180,6 +188,12 @@ namespace ArtisansGuns.Characters
             {
                 Debug.LogWarning("[CharacterSetupHandler] armsSkinnedMeshRenderer is null — assign it in the PlayerSetup Inspector.");
             }
+
+            // If immunity is active, the mesh swap above overwrote the immunity material.
+            // Re-snapshot the correct character materials and re-apply immunity visual.
+            var health = GetComponent<ArtisansGuns.Game.PlayerHealth>();
+            if (health != null && health.IsImmune)
+                health.RefreshImmunityMaterials();
         }
     }
 }

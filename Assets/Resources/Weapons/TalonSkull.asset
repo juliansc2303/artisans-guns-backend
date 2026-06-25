@@ -17,8 +17,12 @@ MonoBehaviour:
   isKnife: 0
   isPrimary: 1
   isSecondary: 0
+  isShotgun: 0
+  pelletCount: 9
+  shotgunSpreadAngle: 5
   weaponClass: 0
   whiteIcon: {fileID: 21300000, guid: 5d36e04564c9f974a8e560abf734f979, type: 3}
+  killUISprite: {fileID: 0}
   weaponPrefab: {fileID: 3532325025891656692, guid: 92c1b971b6c12da4c9acc7db4c6e26e4, type: 3}
   fireRate: 600
   isAutomatic: 1
@@ -52,12 +56,20 @@ MonoBehaviour:
     impactEffectPrefab: {fileID: 3006088146972272947, guid: 00fa69f605f67d24f9d49d4ee34f0a51, type: 3}
     impactEffectDuration: 1
     impactSound: {fileID: 8300000, guid: 3ea02950a225abb41acccb7e25bb5dba, type: 3}
+  - tag: Ventilador
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 8ba4fc1a49b54e34080fb1bf96ea112b, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 3ea02950a225abb41acccb7e25bb5dba, type: 3}
+  - tag: Mwall
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 00fa69f605f67d24f9d49d4ee34f0a51, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 2d3d4eeccf3293548bdc69fd938054b3, type: 3}
   fireSoundTPV: {fileID: 8300000, guid: 312059d6d9333ea42a6ac6fb25ea35bd, type: 3}
   recoilPattern: {fileID: 11400000, guid: feef59f626b02bd4bbc67585922aaf5c, type: 2}
   recoilKickAmount: 12
   recoilSmoothness: 30
-  movingRecoilMultiplier: 13
-  movingHorizontalSpread: 0.3
+  movementSpreadAngle: 1.5
+  jumpSpreadAngle: 3
   weaponUpForce: 3
   weaponBackForce: 3
   weaponVerticalRoll: 6

@@ -36,6 +36,29 @@ namespace ArtisansGuns.UI
         private Button exitConfirmNo;
         private VisualElement roomCodeSection;
         private Label settingsRoomCodeLabel;
+        private Button fireButtonLeftBtn;
+        private Button fireButtonRightBtn;
+        private Button langEnBtn;
+        private Button langEsBtn;
+        private Label languageSectionTitle;
+        private Label languageSettingLabel;
+        private Button shadowsOnBtn;
+        private Button shadowsOffBtn;
+        private Label renderShadowsLabel;
+
+        // Cached labels for re-localization
+        private Label settingsTitleLabel;
+        private Label generalSectionLabel;
+        private Label sensitivityLabel;
+        private Label audioSectionLabel;
+        private Label musicVolumeLabel;
+        private Label controlsSectionLabel;
+        private Label fireButtonSideLabel;
+        private Label exitMatchTitleLabel;
+        private Label exitMatchMessageLabel;
+        private Button exitConfirmYesBtn;
+        private Button exitConfirmNoBtn;
+        private Label roomCodeLabel;
 
         private void OnEnable()
         {
@@ -95,6 +118,30 @@ namespace ArtisansGuns.UI
             exitConfirmNo = root.Q<Button>("ExitConfirmNo");
             roomCodeSection = root.Q<VisualElement>("RoomCodeSection");
             settingsRoomCodeLabel = root.Q<Label>("SettingsRoomCodeLabel");
+            fireButtonLeftBtn = root.Q<Button>("FireButtonLeftBtn");
+            langEnBtn = root.Q<Button>("LangEnBtn");
+            langEsBtn = root.Q<Button>("LangEsBtn");
+            languageSectionTitle = root.Q<Label>("LanguageSectionTitle");
+            languageSettingLabel = root.Q<Label>("LanguageSettingLabel");
+            shadowsOnBtn = root.Q<Button>("ShadowsOnBtn");
+            shadowsOffBtn = root.Q<Button>("ShadowsOffBtn");
+            renderShadowsLabel = root.Q<Label>("RenderShadowsLabel");
+            // Cache labels for re-localization
+            var settingsHeader = root.Q<VisualElement>("SettingsPanel");
+            settingsTitleLabel = settingsHeader?.Q<Label>(className: "settings-title");
+            var sections = root.Query<Label>(className: "settings-section-title").ToList();
+            generalSectionLabel = sections.Count > 0 ? sections[0] : null;
+            audioSectionLabel = sections.Find(l => l.text == "AUDIO" || l.text == LocalizationManager.T("AUDIO"));
+            controlsSectionLabel = sections.Find(l => l.text == "CONTROLS" || l.text == LocalizationManager.T("CONTROLS"));
+            sensitivityLabel = root.Q<Slider>("SensitivitySlider")?.parent?.parent?.Q<Label>(className: "settings-label");
+            musicVolumeLabel = root.Q<Slider>("MusicVolumeSlider")?.parent?.parent?.Q<Label>(className: "settings-label");
+            fireButtonSideLabel = root.Q<Button>("FireButtonLeftBtn")?.parent?.parent?.Q<Label>(className: "settings-label");
+            exitMatchTitleLabel = root.Q<VisualElement>("ExitConfirmOverlay")?.Q<Label>(className: "exit-confirm-title");
+            exitMatchMessageLabel = root.Q<VisualElement>("ExitConfirmOverlay")?.Q<Label>(className: "exit-confirm-message");
+            exitConfirmYesBtn = root.Q<Button>("ExitConfirmYes");
+            exitConfirmNoBtn = root.Q<Button>("ExitConfirmNo");
+            roomCodeLabel = root.Q<VisualElement>("RoomCodeSection")?.Q<Label>(className: "room-code-label-sm");
+            fireButtonRightBtn = root.Q<Button>("FireButtonRightBtn");
 
             // Register callbacks
             if (closeSettingsButton != null)
@@ -111,6 +158,18 @@ namespace ArtisansGuns.UI
                 exitConfirmYes.clicked += OnExitConfirmYes;
             if (exitConfirmNo != null)
                 exitConfirmNo.clicked += OnExitConfirmNo;
+            if (fireButtonLeftBtn != null)
+                fireButtonLeftBtn.clicked += () => SetFireButtonSide("left");
+            if (fireButtonRightBtn != null)
+                fireButtonRightBtn.clicked += () => SetFireButtonSide("right");
+            if (langEnBtn != null)
+                langEnBtn.clicked += () => SetLanguage(LocalizationManager.Language.EN);
+            if (langEsBtn != null)
+                langEsBtn.clicked += () => SetLanguage(LocalizationManager.Language.ES);
+            if (shadowsOnBtn != null)
+                shadowsOnBtn.clicked += () => SetRenderShadows(true);
+            if (shadowsOffBtn != null)
+                shadowsOffBtn.clicked += () => SetRenderShadows(false);
 
             // Subscribe to SettingsManager changes
             if (SettingsManager.Instance != null)
@@ -121,6 +180,10 @@ namespace ArtisansGuns.UI
 
             // Show/hide logout button based on auth state
             UpdateLogoutButtonVisibility();
+
+            // Apply current language to settings panel labels
+            UpdateLanguageToggleVisual();
+            LocalizeSettingsLabels();
         }
 
         /// <summary>
@@ -149,6 +212,14 @@ namespace ArtisansGuns.UI
             if (musicVolumeSlider != null)
                 musicVolumeSlider.SetValueWithoutNotify(musicVol);
             UpdateMusicVolumeLabel(musicVol);
+
+            // Fire button side
+            string fireSide = PlayerPrefs.GetString("fire_button_side", "left");
+            UpdateFireButtonToggleVisual(fireSide);
+
+            // Render shadows
+            bool shadows = SettingsManager.Instance.GetRenderShadows();
+            UpdateShadowsToggleVisual(shadows);
         }
 
         /// <summary>
@@ -199,6 +270,57 @@ namespace ArtisansGuns.UI
         {
             if (musicVolumeValueLabel != null)
                 musicVolumeValueLabel.text = Mathf.RoundToInt(value * 100f) + "%";
+        }
+
+        private void SetFireButtonSide(string side)
+        {
+            PlayerPrefs.SetString("fire_button_side", side);
+            PlayerPrefs.Save();
+            UpdateFireButtonToggleVisual(side);
+
+            // Apply immediately if MobileControlsController is active
+            var ctrl = MobileControlsController.Instance;
+            if (ctrl != null)
+                ctrl.ApplyFireButtonSide(side);
+        }
+
+        private void UpdateFireButtonToggleVisual(string side)
+        {
+            if (fireButtonLeftBtn != null)
+            {
+                if (side == "left")
+                    fireButtonLeftBtn.AddToClassList("settings-toggle-active");
+                else
+                    fireButtonLeftBtn.RemoveFromClassList("settings-toggle-active");
+            }
+            if (fireButtonRightBtn != null)
+            {
+                if (side == "right")
+                    fireButtonRightBtn.AddToClassList("settings-toggle-active");
+                else
+                    fireButtonRightBtn.RemoveFromClassList("settings-toggle-active");
+            }
+        }
+
+        private void SetRenderShadows(bool enabled)
+        {
+            if (SettingsManager.Instance != null)
+                SettingsManager.Instance.SetRenderShadows(enabled);
+            UpdateShadowsToggleVisual(enabled);
+        }
+
+        private void UpdateShadowsToggleVisual(bool enabled)
+        {
+            if (shadowsOnBtn != null)
+            {
+                if (enabled) shadowsOnBtn.AddToClassList("settings-toggle-active");
+                else shadowsOnBtn.RemoveFromClassList("settings-toggle-active");
+            }
+            if (shadowsOffBtn != null)
+            {
+                if (!enabled) shadowsOffBtn.AddToClassList("settings-toggle-active");
+                else shadowsOffBtn.RemoveFromClassList("settings-toggle-active");
+            }
         }
 
         /// <summary>
@@ -325,6 +447,55 @@ namespace ArtisansGuns.UI
                 logoutButton.AddToClassList("hidden");
             else
                 logoutButton.RemoveFromClassList("hidden");
+        }
+
+        // ─── Language Toggle ─────────────────────────────────────────────────
+
+        private void SetLanguage(LocalizationManager.Language lang)
+        {
+            LocalizationManager.SetLanguage(lang);
+            UpdateLanguageToggleVisual();
+            LocalizeSettingsLabels();
+            // OnLanguageChanged event handles re-rendering all other UI controllers
+        }
+
+        private void UpdateLanguageToggleVisual()
+        {
+            bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.Language.EN;
+            if (langEnBtn != null)
+            {
+                if (isEn) langEnBtn.AddToClassList("settings-toggle-active");
+                else langEnBtn.RemoveFromClassList("settings-toggle-active");
+            }
+            if (langEsBtn != null)
+            {
+                if (!isEn) langEsBtn.AddToClassList("settings-toggle-active");
+                else langEsBtn.RemoveFromClassList("settings-toggle-active");
+            }
+        }
+
+        /// <summary>Re-apply localized text to all settings panel labels.</summary>
+        public void LocalizeSettingsLabels()
+        {
+            if (settingsTitleLabel != null) settingsTitleLabel.text = LocalizationManager.T("SETTINGS");
+            if (generalSectionLabel != null) generalSectionLabel.text = LocalizationManager.T("GENERAL");
+            if (sensitivityLabel != null) sensitivityLabel.text = LocalizationManager.T("Sensitivity");
+            if (renderShadowsLabel != null) renderShadowsLabel.text = LocalizationManager.T("Render Shadows");
+            if (audioSectionLabel != null) audioSectionLabel.text = LocalizationManager.T("AUDIO");
+            if (musicVolumeLabel != null) musicVolumeLabel.text = LocalizationManager.T("Music Volume");
+            if (controlsSectionLabel != null) controlsSectionLabel.text = LocalizationManager.T("CONTROLS");
+            if (fireButtonSideLabel != null) fireButtonSideLabel.text = LocalizationManager.T("Fire Button Side");
+            if (languageSectionTitle != null) languageSectionTitle.text = LocalizationManager.T("LANGUAGE");
+            if (languageSettingLabel != null) languageSettingLabel.text = LocalizationManager.T("Language");
+            if (logoutButton != null) logoutButton.text = LocalizationManager.T("LOGOUT");
+            if (exitGameButton != null) exitGameButton.text = LocalizationManager.T("EXIT");
+            if (exitMatchTitleLabel != null) exitMatchTitleLabel.text = LocalizationManager.T("EXIT MATCH?");
+            if (exitMatchMessageLabel != null) exitMatchMessageLabel.text = LocalizationManager.T("You won't receive rewards if you leave now.");
+            if (exitConfirmYesBtn != null) exitConfirmYesBtn.text = LocalizationManager.T("LEAVE");
+            if (exitConfirmNoBtn != null) exitConfirmNoBtn.text = LocalizationManager.T("STAY");
+            if (roomCodeLabel != null) roomCodeLabel.text = LocalizationManager.T("ROOM CODE");
+            if (fireButtonLeftBtn != null) fireButtonLeftBtn.text = LocalizationManager.T("LEFT");
+            if (fireButtonRightBtn != null) fireButtonRightBtn.text = LocalizationManager.T("RIGHT");
         }
     }
 }

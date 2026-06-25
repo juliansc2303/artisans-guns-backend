@@ -6,6 +6,7 @@ using UnityEngine.Networking;
 using ArtisansGuns.Auth;
 using ArtisansGuns.Data;
 using ArtisansGuns.Managers;
+using static ArtisansGuns.Managers.LocalizationManager;
 
 namespace ArtisansGuns.UI
 {
@@ -17,8 +18,18 @@ namespace ArtisansGuns.UI
         private Label selectedItemLabel;
         [SerializeField] private UIDocument uiDocument;
 
-        private ShopItemDefinition.ShopItem selectedItem;
-        private VisualElement selectedCard;
+        // Subtab buttons
+        private Button weaponsSubtab;
+        private Button hatsSubtab;
+        private string activeSubtab = "weapons"; // "weapons" or "hats"
+
+        // Weapon selection
+        private ShopItemDefinition.ShopItem selectedWeaponItem;
+        private VisualElement selectedWeaponCard;
+
+        // Hat selection
+        private HatDefinition selectedHatItem;
+        private VisualElement selectedHatCard;
 
         private const string BASE_URL = "https://ryvalen.onrender.com/api";
         private const int REQUEST_TIMEOUT = 120;
@@ -36,51 +47,91 @@ namespace ArtisansGuns.UI
             shopGrid = root.Q<ScrollView>("ShopGrid");
             buyButton = root.Q<Button>("ShopBuyButton");
             selectedItemLabel = root.Q<Label>("ShopSelectedItemLabel");
+            weaponsSubtab = root.Q<Button>("ShopWeaponsSubtab");
+            hatsSubtab = root.Q<Button>("ShopHatsSubtab");
 
             if (buyButton != null)
                 buyButton.RegisterCallback<ClickEvent>(evt => OnBuyClicked());
+            if (weaponsSubtab != null)
+                weaponsSubtab.RegisterCallback<ClickEvent>(evt => SwitchSubtab("weapons"));
+            if (hatsSubtab != null)
+                hatsSubtab.RegisterCallback<ClickEvent>(evt => SwitchSubtab("hats"));
 
-            selectedItem = null;
-            selectedCard = null;
-            UpdateBuyButton();
-            PopulateShop();
+            selectedWeaponItem = null;
+            selectedWeaponCard = null;
+            selectedHatItem = null;
+            selectedHatCard = null;
+            activeSubtab = "weapons";
+            UpdateSubtabStyles();
+            PopulateGrid();
+
+            LocalizationManager.OnLanguageChanged += LocalizeUI;
+            LocalizeUI();
         }
 
         private void OnDisable()
         {
             if (buyButton != null)
                 buyButton.UnregisterCallback<ClickEvent>(evt => OnBuyClicked());
+            LocalizationManager.OnLanguageChanged -= LocalizeUI;
         }
 
-        private void PopulateShop()
+        private void SwitchSubtab(string subtab)
+        {
+            if (subtab == activeSubtab) return;
+            SoundManager.Instance?.PlayClick();
+            activeSubtab = subtab;
+            UpdateSubtabStyles();
+            PopulateGrid();
+        }
+
+        private void UpdateSubtabStyles()
+        {
+            weaponsSubtab?.RemoveFromClassList("shop-subtab-active");
+            hatsSubtab?.RemoveFromClassList("shop-subtab-active");
+            if (activeSubtab == "weapons")
+                weaponsSubtab?.AddToClassList("shop-subtab-active");
+            else
+                hatsSubtab?.AddToClassList("shop-subtab-active");
+        }
+
+        private void PopulateGrid()
+        {
+            if (activeSubtab == "weapons")
+                PopulateWeapons();
+            else
+                PopulateHats();
+        }
+
+        // ─── WEAPONS ──────────────────────────────────────────────────
+
+        private void PopulateWeapons()
         {
             if (shopGrid == null) return;
             shopGrid.Clear();
-            selectedItem = null;
-            selectedCard = null;
+            selectedWeaponItem = null;
+            selectedWeaponCard = null;
 
             var items = ShopItemDefinition.GetAllItems();
             foreach (var item in items)
             {
                 bool isOwned = item.skinId == "default" ||
                     (LoadoutManager.Instance?.IsSkinUnlocked(item.weaponId, item.skinId) ?? false);
-                var card = CreateShopCard(item, isOwned);
+                var card = CreateWeaponCard(item, isOwned);
                 shopGrid.Add(card);
             }
             UpdateBuyButton();
         }
 
-        private VisualElement CreateShopCard(ShopItemDefinition.ShopItem item, bool owned)
+        private VisualElement CreateWeaponCard(ShopItemDefinition.ShopItem item, bool owned)
         {
             var card = new VisualElement();
             card.AddToClassList("shop-card");
 
-            // Name label
             var nameLabel = new Label(item.displayName);
             nameLabel.AddToClassList("shop-card-name");
             card.Add(nameLabel);
 
-            // Icon
             var icon = new VisualElement();
             icon.AddToClassList("shop-card-icon");
             var texture = Resources.Load<Texture2D>(item.iconPath);
@@ -88,25 +139,22 @@ namespace ArtisansGuns.UI
                 icon.style.backgroundImage = new StyleBackground(texture);
             card.Add(icon);
 
-            // Price row
             var priceRow = new VisualElement();
             priceRow.AddToClassList("shop-card-price-row");
 
             if (owned)
             {
                 card.AddToClassList("owned");
-                var ownedLabel = new Label("OWNED");
+                var ownedLabel = new Label(T("OWNED"));
                 ownedLabel.AddToClassList("shop-card-owned-label");
                 priceRow.Add(ownedLabel);
             }
             else
             {
-                // Price text
                 var priceLabel = new Label(item.price.ToString());
                 priceLabel.AddToClassList("shop-card-price");
                 priceRow.Add(priceLabel);
 
-                // Currency icon (right of price)
                 var currencyIcon = new VisualElement();
                 currencyIcon.AddToClassList("shop-card-currency-icon");
                 string currencyPath = item.currency == ShopItemDefinition.CurrencyType.RivalCoins
@@ -120,49 +168,170 @@ namespace ArtisansGuns.UI
 
             card.Add(priceRow);
 
-            // Click to select (not buy)
             card.RegisterCallback<ClickEvent>(evt =>
             {
                 if (owned) return;
                 SoundManager.Instance?.PlayClick();
-                SelectCard(item, card);
+                SelectWeaponCard(item, card);
             });
 
             return card;
         }
 
-        private void SelectCard(ShopItemDefinition.ShopItem item, VisualElement card)
+        private void SelectWeaponCard(ShopItemDefinition.ShopItem item, VisualElement card)
         {
-            // Deselect previous
-            selectedCard?.RemoveFromClassList("selected");
-
-            selectedItem = item;
-            selectedCard = card;
+            selectedWeaponCard?.RemoveFromClassList("selected");
+            selectedWeaponItem = item;
+            selectedWeaponCard = card;
             card.AddToClassList("selected");
             UpdateBuyButton();
         }
+
+        // ─── HATS ─────────────────────────────────────────────────────
+
+        private void PopulateHats()
+        {
+            if (shopGrid == null) return;
+            shopGrid.Clear();
+            selectedHatItem = null;
+            selectedHatCard = null;
+
+            var allHats = HatDefinition.GetAllHats();
+            var loadout = LoadoutManager.Instance?.GetLoadout();
+            string[] ownedHats = loadout?.unlockedHats;
+
+            foreach (var hat in allHats)
+            {
+                bool owned = IsHatOwned(hat.hatId, ownedHats);
+                var card = CreateHatCard(hat, owned);
+                shopGrid.Add(card);
+            }
+            UpdateBuyButton();
+        }
+
+        private bool IsHatOwned(string hatId, string[] ownedHats)
+        {
+            if (ownedHats == null) return false;
+            foreach (var h in ownedHats)
+                if (h == hatId) return true;
+            return false;
+        }
+
+        private VisualElement CreateHatCard(HatDefinition hat, bool owned)
+        {
+            var card = new VisualElement();
+            card.AddToClassList("hat-card");
+            if (owned)
+                card.AddToClassList("owned");
+
+            // Padlock overlay for locked hats
+            if (!owned)
+            {
+                var lockOverlay = new VisualElement();
+                lockOverlay.AddToClassList("hat-card-lock-overlay");
+                var lockIcon = new Label("\U0001F512");
+                lockIcon.AddToClassList("hat-card-lock-icon");
+                lockOverlay.Add(lockIcon);
+                card.Add(lockOverlay);
+            }
+
+            var nameLabel = new Label(hat.displayName);
+            nameLabel.AddToClassList("hat-card-name");
+            card.Add(nameLabel);
+
+            var icon = new VisualElement();
+            icon.AddToClassList("hat-card-icon");
+            var tex = Resources.Load<Texture2D>(hat.iconPath);
+            if (tex != null)
+                icon.style.backgroundImage = new StyleBackground(tex);
+            card.Add(icon);
+
+            var priceRow = new VisualElement();
+            priceRow.AddToClassList("hat-card-price-row");
+
+            if (owned)
+            {
+                var ownedLabel = new Label(T("OWNED"));
+                ownedLabel.AddToClassList("hat-card-owned-label");
+                priceRow.Add(ownedLabel);
+            }
+            else
+            {
+                var priceLabel = new Label(hat.price.ToString());
+                priceLabel.AddToClassList("hat-card-price");
+                priceRow.Add(priceLabel);
+
+                string currencyPath = hat.currency == ShopItemDefinition.CurrencyType.RivalCoins
+                    ? "Icons/RivalEssenceIcon"
+                    : "Icons/RivalPointsIcon";
+                var currIcon = new VisualElement();
+                currIcon.AddToClassList("shop-card-currency-icon");
+                var currTex = Resources.Load<Texture2D>(currencyPath);
+                if (currTex != null)
+                    currIcon.style.backgroundImage = new StyleBackground(currTex);
+                priceRow.Add(currIcon);
+            }
+            card.Add(priceRow);
+
+            card.RegisterCallback<ClickEvent>(evt =>
+            {
+                if (owned) return;
+                SoundManager.Instance?.PlayClick();
+                SelectHatCard(hat, card);
+            });
+
+            return card;
+        }
+
+        private void SelectHatCard(HatDefinition hat, VisualElement card)
+        {
+            selectedHatCard?.RemoveFromClassList("selected");
+            selectedHatItem = hat;
+            selectedHatCard = card;
+            card.AddToClassList("selected");
+            UpdateBuyButton();
+        }
+
+        // ─── SHARED BUY BUTTON ─────────────────────────────────────────
 
         private void UpdateBuyButton()
         {
             if (buyButton == null) return;
 
-            if (selectedItem == null)
+            bool hasSelection = activeSubtab == "weapons" ? selectedWeaponItem != null : selectedHatItem != null;
+
+            if (!hasSelection)
             {
                 buyButton.Clear();
-                buyButton.text = "SELECT AN ITEM";
+                buyButton.text = T("SELECT AN ITEM");
                 buyButton.SetEnabled(false);
                 if (selectedItemLabel != null) selectedItemLabel.text = "";
                 return;
             }
 
-            // Check currency
-            int playerCurrency = GetPlayerCurrency(selectedItem.currency);
-            bool canAfford = playerCurrency >= selectedItem.price;
+            int price;
+            ShopItemDefinition.CurrencyType currency;
+            string displayName;
+
+            if (activeSubtab == "weapons")
+            {
+                price = selectedWeaponItem.price;
+                currency = selectedWeaponItem.currency;
+                displayName = selectedWeaponItem.displayName;
+            }
+            else
+            {
+                price = selectedHatItem.price;
+                currency = selectedHatItem.currency;
+                displayName = selectedHatItem.displayName;
+            }
+
+            int playerCurrency = GetPlayerCurrency(currency);
+            bool canAfford = playerCurrency >= price;
 
             if (selectedItemLabel != null)
-                selectedItemLabel.text = selectedItem.displayName;
+                selectedItemLabel.text = displayName;
 
-            // Rebuild button content with currency icon
             buyButton.text = "";
             buyButton.Clear();
             var btnContainer = new VisualElement();
@@ -171,13 +340,13 @@ namespace ArtisansGuns.UI
             btnContainer.style.justifyContent = Justify.Center;
             btnContainer.pickingMode = PickingMode.Ignore;
 
-            string prefix = canAfford ? "BUY" : "NOT ENOUGH";
-            var textLabel = new Label($"{prefix} \u2014 {selectedItem.price}");
+            string prefix = canAfford ? T("BUY") : T("NOT ENOUGH");
+            var textLabel = new Label($"{prefix} \u2014 {price}");
             textLabel.pickingMode = PickingMode.Ignore;
             textLabel.AddToClassList("shop-buy-label");
             btnContainer.Add(textLabel);
 
-            string currPath = selectedItem.currency == ShopItemDefinition.CurrencyType.RivalCoins
+            string currPath = currency == ShopItemDefinition.CurrencyType.RivalCoins
                 ? "Icons/RivalEssenceIcon"
                 : "Icons/RivalPointsIcon";
             var currIcon = new VisualElement();
@@ -206,7 +375,6 @@ namespace ArtisansGuns.UI
         {
             var loadout = LoadoutManager.Instance?.GetLoadout();
             if (loadout == null) return 0;
-
             return type == ShopItemDefinition.CurrencyType.RivalCoins
                 ? loadout.bluePoints
                 : loadout.rivalCoins;
@@ -214,29 +382,35 @@ namespace ArtisansGuns.UI
 
         private void OnBuyClicked()
         {
-            if (selectedItem == null) return;
-
-            int playerCurrency = GetPlayerCurrency(selectedItem.currency);
-            if (playerCurrency < selectedItem.price)
+            if (activeSubtab == "weapons")
             {
-                Debug.LogWarning("[Shop] Not enough currency");
-                return;
+                if (selectedWeaponItem == null) return;
+                int balance = GetPlayerCurrency(selectedWeaponItem.currency);
+                if (balance < selectedWeaponItem.price) return;
+                SoundManager.Instance?.PlaySelect();
+                StartCoroutine(PurchaseWeaponSkin(selectedWeaponItem));
             }
-
-            SoundManager.Instance?.PlaySelect();
-            StartCoroutine(PurchaseItem(selectedItem));
+            else
+            {
+                if (selectedHatItem == null) return;
+                int balance = GetPlayerCurrency(selectedHatItem.currency);
+                if (balance < selectedHatItem.price) return;
+                SoundManager.Instance?.PlaySelect();
+                StartCoroutine(PurchaseHat(selectedHatItem));
+            }
         }
 
-        private IEnumerator PurchaseItem(ShopItemDefinition.ShopItem item)
+        // ─── PURCHASE COROUTINES ───────────────────────────────────────
+
+        private IEnumerator PurchaseWeaponSkin(ShopItemDefinition.ShopItem item)
         {
             AuthManager authMgr = AuthManager.Instance;
             string token = authMgr != null ? authMgr.GetCurrentToken() : null;
             if (string.IsNullOrEmpty(token)) yield break;
 
-            // Disable buy button during purchase
             if (buyButton != null)
             {
-                buyButton.text = "PURCHASING...";
+                buyButton.text = T("PURCHASING...");
                 buyButton.SetEnabled(false);
             }
 
@@ -264,11 +438,9 @@ namespace ArtisansGuns.UI
                     var response = JsonUtility.FromJson<PurchaseResponse>(request.downloadHandler.text);
                     if (response.success)
                     {
-                        // Refresh loadout to get updated currency + unlocked skins
                         LoadoutManager.Instance?.RefreshLoadout(success =>
                         {
-                            if (success)
-                                PopulateShop();
+                            if (success) PopulateGrid();
                         });
                     }
                     else
@@ -285,6 +457,62 @@ namespace ArtisansGuns.UI
             }
         }
 
+        private IEnumerator PurchaseHat(HatDefinition hat)
+        {
+            string token = AuthManager.Instance?.GetCurrentToken();
+            if (string.IsNullOrEmpty(token)) yield break;
+
+            if (buyButton != null)
+            {
+                buyButton.text = T("PURCHASING...");
+                buyButton.SetEnabled(false);
+            }
+
+            string currencyType = hat.currency == ShopItemDefinition.CurrencyType.RivalCoins
+                ? "blue_points" : "rival_coins";
+
+            string json = JsonUtility.ToJson(new PurchaseHatRequest
+            {
+                hatId = hat.hatId,
+                price = hat.price,
+                currencyType = currencyType
+            });
+
+            using (UnityWebRequest request = new UnityWebRequest($"{BASE_URL}/loadout/purchase-hat", "POST"))
+            {
+                request.timeout = REQUEST_TIMEOUT;
+                byte[] body = Encoding.UTF8.GetBytes(json);
+                request.uploadHandler = new UploadHandlerRaw(body);
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", $"Bearer {token}");
+
+                yield return request.SendWebRequest();
+
+                if (request.result == UnityWebRequest.Result.Success)
+                {
+                    var response = JsonUtility.FromJson<PurchaseResponse>(request.downloadHandler.text);
+                    if (response.success)
+                    {
+                        LoadoutManager.Instance?.RefreshLoadout(success =>
+                        {
+                            if (success) PopulateGrid();
+                        });
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[Shop] Hat purchase failed: {response.error}");
+                        UpdateBuyButton();
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[Shop] Hat request failed: {request.error}");
+                    UpdateBuyButton();
+                }
+            }
+        }
+
         [System.Serializable]
         private class PurchaseSkinRequest
         {
@@ -295,10 +523,33 @@ namespace ArtisansGuns.UI
         }
 
         [System.Serializable]
+        private class PurchaseHatRequest
+        {
+            public string hatId;
+            public int price;
+            public string currencyType;
+        }
+
+        [System.Serializable]
         private class PurchaseResponse
         {
             public bool success;
             public string error;
+        }
+
+        private void LocalizeUI()
+        {
+            // Shop title
+            var root = GetComponent<UIDocument>()?.rootVisualElement;
+            var shopTitle = root?.Q<Label>(className: "shop-tab-title");
+            if (shopTitle != null) shopTitle.text = T("SHOP");
+
+            // Re-set subtab button labels (set .text directly on Button)
+            if (weaponsSubtab != null) weaponsSubtab.text = T("WEAPONS");
+            if (hatsSubtab != null) hatsSubtab.text = T("HATS");
+
+            // Refresh the grid (cards have OWNED labels) and buy button
+            PopulateGrid();
         }
     }
 }

@@ -102,7 +102,7 @@
         <!-- Ability column — abilities 1 & 2 -->
         <ui:VisualElement name="AbilityColumn"
             style="position: absolute; right: 330px; bottom: 60px;
-                   flex-direction: column; align-items: center;">
+                   flex-direction: column; align-items: center; overflow: visible;">
             <ui:VisualElement name="Ability2Wrap"
                 style="width: 100px; height: 100px; margin: 8px; margin-top: -20px;
                        align-items: center; justify-content: center; overflow: visible;">
@@ -163,7 +163,7 @@
 
         <!-- Fire button — left side, above joystick area, larger -->
         <ui:VisualElement name="FireButton"
-            style="position: absolute; left: 150px; bottom: 42%;
+            style="position: absolute; left: 200px; bottom: 42%;
                    width: 200px; height: 200px;
                    -unity-background-scale-mode: scale-to-fit;" />
 
@@ -240,7 +240,7 @@
             <ui:VisualElement class="scores-panel">
                 <ui:VisualElement class="scores-header">
                     <ui:Label text="SCOREBOARD" class="scores-title" />
-                    <ui:Button name="ScoresCloseButton" text="&#x2715;" class="scores-close-btn" />
+                    <ui:Button name="ScoresCloseButton" text="X" class="scores-close-btn" />
                 </ui:VisualElement>
                 <ui:VisualElement class="scores-teams-row">
                     <ui:VisualElement class="scores-team-col scores-team-a-col">
@@ -270,7 +270,7 @@
         <!-- POST-MATCH OVERLAY (hidden by default, shown when match ends) -->
         <ui:VisualElement name="PostMatchOverlay" class="post-match-overlay hidden" picking-mode="Ignore">
             <!-- Result Banner (VICTORIA / DERROTA / EMPATE) -->
-            <ui:Label text="VICTORIA" name="PostMatchResult" class="post-match-result" />
+            <ui:Label text="VICTORY" name="PostMatchResult" class="post-match-result" />
             <!-- Team Score Summary -->
             <ui:VisualElement class="post-match-score-row">
                 <ui:VisualElement class="post-match-team-block post-match-team-a">
@@ -359,6 +359,29 @@
                             <ui:Label name="SensitivityValueLabel" text="2.0" class="settings-value-label" />
                         </ui:VisualElement>
                     </ui:VisualElement>
+
+                    <!-- Render Shadows Setting -->
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label name="RenderShadowsLabel" text="Render Shadows" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Button name="ShadowsOnBtn" text="ON" class="settings-toggle-btn settings-toggle-active" />
+                            <ui:Button name="ShadowsOffBtn" text="OFF" class="settings-toggle-btn" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    
+                </ui:VisualElement>
+
+                <!-- CONTROLS SECTION -->
+                <ui:VisualElement class="settings-section">
+                    <ui:Label text="CONTROLS" class="settings-section-title" />
+                    
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label text="Fire Button Side" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Button name="FireButtonLeftBtn" text="LEFT" class="settings-toggle-btn settings-toggle-active" />
+                            <ui:Button name="FireButtonRightBtn" text="RIGHT" class="settings-toggle-btn" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
                     
                 </ui:VisualElement>
 
@@ -376,6 +399,17 @@
                         </ui:VisualElement>
                     </ui:VisualElement>
                     
+                </ui:VisualElement>
+
+                <ui:VisualElement class="settings-section">
+                    <ui:Label name="LanguageSectionTitle" text="LANGUAGE" class="settings-section-title" />
+                    <ui:VisualElement class="settings-item">
+                        <ui:Label name="LanguageSettingLabel" text="Language" class="settings-label" />
+                        <ui:VisualElement class="settings-value-row">
+                            <ui:Button name="LangEnBtn" text="EN" class="settings-toggle-btn" />
+                            <ui:Button name="LangEsBtn" text="ES" class="settings-toggle-btn settings-toggle-active" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
                 </ui:VisualElement>
                 
             </ui:ScrollView>

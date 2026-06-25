@@ -99,6 +99,12 @@ namespace ArtisansGuns.UI
         private CooldownDialElement _dial1;
         private CooldownDialElement _dial2;
 
+        // ── Ability charge bars (e.g. smoke grenade 2 charges) ───────────
+        private VisualElement _ability1BarsContainer;
+        private VisualElement _ability2BarsContainer;
+        private VisualElement[] _ability1Bars;
+        private VisualElement[] _ability2Bars;
+
         // ─────────────────────────────────────────────────────────────────
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void AutoBootstrap()
@@ -147,7 +153,23 @@ namespace ArtisansGuns.UI
             SetupJoystick(root);
             SetupButtons();
             ApplySprites();
+            ApplyFireButtonSide(PlayerPrefs.GetString("fire_button_side", "left"));
             Debug.Log("[MobileControls] Initialised via GameplayHUD root.");
+        }
+
+        public void ApplyFireButtonSide(string side)
+        {
+            if (_fireButton == null) return;
+            if (side == "right")
+            {
+                _fireButton.style.left = StyleKeyword.Auto;
+                _fireButton.style.right = 80;
+            }
+            else
+            {
+                _fireButton.style.right = StyleKeyword.Auto;
+                _fireButton.style.left = 80;
+            }
         }
 
         // ── Element binding ────────────────────────────────────────────────
@@ -560,6 +582,80 @@ namespace ArtisansGuns.UI
             _ability2Button.style.opacity = on ? 1f : 0.45f;
         }
 
+        /// <summary>
+        /// Hides the Ability2 button and its wrapper entirely (agents only have 1 ability).
+        /// </summary>
+        public void HideAbility2()
+        {
+            if (_ability2Button != null)
+            {
+                _ability2Button.style.display = DisplayStyle.None;
+                var wrap = _ability2Button.parent;
+                if (wrap != null) wrap.style.display = DisplayStyle.None;
+            }
+        }
+
+        /// <summary>
+        /// Creates (or updates) rectangular charge bars below the ability button.
+        /// Bars are green when filled, dim grey when empty.
+        /// Visually distinct from the ultimate's circular dots.
+        /// </summary>
+        public void SetAbilityChargeBars(int slot, int filledCount, int maxCount)
+        {
+            Color lit = new Color(0.15f, 0.85f, 0.25f, 1f); // green
+            Color dim = new Color(0.3f, 0.3f, 0.3f, 0.5f);  // grey
+
+            ref VisualElement container = ref (slot == 1 ? ref _ability1BarsContainer : ref _ability2BarsContainer);
+            ref VisualElement[] bars = ref (slot == 1 ? ref _ability1Bars : ref _ability2Bars);
+
+            var wrap = slot == 1
+                ? _ability1Button?.parent
+                : _ability2Button?.parent;
+
+            if (wrap == null) return;
+
+            // Create container + bars on first call (or if maxCount changed)
+            if (container == null || bars == null || bars.Length != maxCount)
+            {
+                if (container != null) wrap.Remove(container);
+
+                container = new VisualElement();
+                container.name = $"Ability{slot}ChargeBars";
+                container.pickingMode = PickingMode.Ignore;
+                container.style.position = Position.Absolute;
+                container.style.bottom = -16f;
+                container.style.left = 0f;
+                container.style.right = 0f;
+                container.style.flexDirection = FlexDirection.Row;
+                container.style.justifyContent = Justify.Center;
+                container.style.alignItems = Align.Center;
+                wrap.Add(container);
+
+                bars = new VisualElement[maxCount];
+                for (int i = 0; i < maxCount; i++)
+                {
+                    var bar = new VisualElement();
+                    bar.style.width  = 16f;
+                    bar.style.height = 6f;
+                    bar.style.borderTopLeftRadius = bar.style.borderTopRightRadius =
+                        bar.style.borderBottomLeftRadius = bar.style.borderBottomRightRadius = 2f;
+                    bar.style.backgroundColor = new StyleColor(dim);
+                    bar.style.marginLeft  = 2f;
+                    bar.style.marginRight = 2f;
+                    bar.pickingMode = PickingMode.Ignore;
+                    bars[i] = bar;
+                    container.Add(bar);
+                }
+            }
+
+            // Update bar colours
+            for (int i = 0; i < bars.Length; i++)
+            {
+                if (bars[i] != null)
+                    bars[i].style.backgroundColor = new StyleColor(i < filledCount ? lit : dim);
+            }
+        }
+
         // ── Ultimate display API ───────────────────────────────────────────
 
         public void SetUltimateIcon(Sprite icon) => SetIcon(_ultimateIcon, icon);
@@ -659,6 +755,8 @@ namespace ArtisansGuns.UI
             {
                 case "talon_ar":      return "Icons/Talon-ARWhiteIcon";
                 case "bolt":          return "Icons/BoltWhiteIcon";
+                case "onyx":          return "Icons/OnyxWhiteIcon";
+                case "titan":         return "Icons/TitanWhiteIcon";
                 case "knife":         return "Icons/WhiteIconDefaultKnife";
                 case "default_knife": return "Icons/WhiteIconDefaultKnife";
                 default:              return "Icons/Talon-ARWhiteIcon";

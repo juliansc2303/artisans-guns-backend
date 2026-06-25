@@ -35,6 +35,12 @@ namespace ArtisansGuns.Data
 
             // BOLT SKINS
             new WeaponSkin("default", "bolt", "DEFAULT", "Icons/BoltIcon", defaultSkin: true),
+
+            // ONYX SKINS
+            new WeaponSkin("default", "onyx", "DEFAULT", "Icons/OnyxIcon", defaultSkin: true),
+
+            // TITAN SKINS
+            new WeaponSkin("default", "titan", "DEFAULT", "Icons/TitanIcon", defaultSkin: true),
         };
 
         public static List<WeaponSkin> GetSkinsForWeapon(string weaponId)

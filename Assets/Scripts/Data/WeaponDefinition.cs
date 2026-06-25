@@ -44,6 +44,8 @@ namespace ArtisansGuns.Data
         {
             // PRIMARY WEAPONS
             new Weapon("talon_ar", "TALON-AR", WeaponCategory.Primary, "Icons/Talon-ARIcon", defaultWeapon: true),
+            new Weapon("onyx", "ONYX", WeaponCategory.Primary, "Icons/OnyxIcon"),
+            new Weapon("titan", "TITAN", WeaponCategory.Primary, "Icons/TitanIcon"),
 
             // SECONDARY WEAPONS
             new Weapon("bolt", "BOLT", WeaponCategory.Secondary, "Icons/BoltIcon", defaultWeapon: true),

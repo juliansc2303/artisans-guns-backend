@@ -31,6 +31,7 @@ namespace ArtisansGuns.Auth
         private string currentToken;
         private UserData currentUser;
         private bool isGuestSession;
+        private bool _backendConfirmed;
 
         // Events
         public event Action<UserData> OnLoginSuccess;
@@ -69,6 +70,7 @@ namespace ArtisansGuns.Auth
                 Instance = this;
                 DontDestroyOnLoad(gameObject);
                 InitKeyPrefix();
+                ArtisansGuns.Managers.LocalizationManager.Initialize();
             }
             else
             {
@@ -91,12 +93,14 @@ namespace ArtisansGuns.Auth
                         if (isGuestSession)
                         {
                             CurrentAuthMode = AuthMode.Guest;
+                            _backendConfirmed = true;
                             Debug.Log($"[AuthManager] Restored guest session: {currentUser?.characterName}");
                             OnGuestReady?.Invoke(currentUser);
                         }
                         else
                         {
                             CurrentAuthMode = AuthMode.LoggedIn;
+                            _backendConfirmed = true;
                             Debug.Log($"[AuthManager] Restored session: {currentUser?.username}");
                             OnLoginSuccess?.Invoke(currentUser);
                         }
@@ -166,6 +170,7 @@ namespace ArtisansGuns.Auth
                         SaveUserData(currentUser, true);
 
                         Debug.Log($"[AuthManager] Guest ready (DB-backed): {currentUser.characterName} (id={currentUser.id})");
+                        _backendConfirmed = true;
                         OnGuestReady?.Invoke(currentUser);
                     }
                     else
@@ -206,6 +211,8 @@ namespace ArtisansGuns.Auth
                 unlockedCharacters = new[] { "crimson", "vibe", "sight", "pato" },
                 unlockedWeaponSkins = new UnlockedWeaponSkins
                 {
+                    onyx = new[] { "default" },
+                    titan = new[] { "default" },
                     rifle_phantom = new[] { "default" },
                     rifle_vandal = new[] { "default" },
                     shotgun_bucky = new[] { "default" },
@@ -398,6 +405,7 @@ namespace ArtisansGuns.Auth
                         PlayerPrefs.Save();
 
                         Debug.Log($"[AuthManager] Guest linked to Google: {currentUser.characterName} (bonus: {LastGoogleLinkBonus})");
+                        _backendConfirmed = true;
                         OnGoogleLinkSuccess?.Invoke(currentUser);
                         OnLoginSuccess?.Invoke(currentUser);
                     }
@@ -460,6 +468,7 @@ namespace ArtisansGuns.Auth
                         PlayerPrefs.Save();
 
                         Debug.Log($"[AuthManager] Google login: {currentUser.characterName}");
+                        _backendConfirmed = true;
                         OnGoogleLoginSuccess?.Invoke(currentUser);
                         OnLoginSuccess?.Invoke(currentUser);
                     }
@@ -585,6 +594,7 @@ namespace ArtisansGuns.Auth
                         SaveToken(currentToken);
                         SaveUserData(currentUser, false);
 
+                        _backendConfirmed = true;
                         OnLoginSuccess?.Invoke(response.user);
                     }
                     else
@@ -791,6 +801,7 @@ namespace ArtisansGuns.Auth
             currentUser = null;
             CurrentAuthMode = AuthMode.Guest;
             isGuestSession = false;
+            _backendConfirmed = false;
 
             PlayerPrefs.DeleteKey(K("auth_token"));
             PlayerPrefs.DeleteKey(K("user_id"));
@@ -822,10 +833,11 @@ namespace ArtisansGuns.Auth
             return currentToken;
         }
 
-        /// <summary>Whether the current session has a valid backend token (guest or full).</summary>
+        /// <summary>Whether the current session has a valid backend token (guest or full).
+        /// Only returns true after the backend has actually confirmed the session.</summary>
         public bool HasBackendToken()
         {
-            return !string.IsNullOrEmpty(currentToken) && currentUser != null && currentUser.id > 0;
+            return _backendConfirmed && !string.IsNullOrEmpty(currentToken) && currentUser != null && currentUser.id > 0;
         }
 
         private string SimpleEncrypt(string plainText)
@@ -1004,6 +1016,8 @@ namespace ArtisansGuns.Auth
         {
             public string[] talon_ar;
             public string[] bolt;
+            public string[] onyx;
+            public string[] titan;
             public string[] rifle_phantom;
             public string[] rifle_vandal;
             public string[] shotgun_bucky;

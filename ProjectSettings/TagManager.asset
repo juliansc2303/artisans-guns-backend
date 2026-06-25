@@ -8,6 +8,8 @@ TagManager:
   - Body
   - Environment
   - Water
+  - Ventilador
+  - Mwall
   layers:
   - Default
   - TransparentFX
@@ -23,8 +25,8 @@ TagManager:
   - Player
   - InmunePlayer
   - Weapon
-  - 
-  - 
+  - Character
+  - LimitCollider
   - 
   - 
   - 

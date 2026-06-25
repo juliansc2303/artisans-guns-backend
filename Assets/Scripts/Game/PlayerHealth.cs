@@ -93,12 +93,24 @@ namespace ArtisansGuns.Game
         // Death VFX instance (so we can clean it up)
         private GameObject deathVFXInstance;
 
+        /// <summary>
+        /// Stores the bot's NetworkObject when a bot deals damage (set on HOST only).
+        /// Used by IncrementKillForShooter as a fallback when shooterRef == PlayerRef.None.
+        /// </summary>
+        [System.NonSerialized] public NetworkObject LastBotKiller;
+
         // Team layer assigner — re-triggered on respawn to restore correct Enemy/Teammate layer
         private TeamLayerAssigner teamLayerAssigner;
 
         // Tracks the last observed networked HP so remote clients can detect
         // upward HP changes (kill-reward healing) and sync PredictedHP accordingly.
         private float _lastKnownHP;
+
+        // Grace period: when a predicted kill fires, we record the timestamp.
+        // The Render() safety-net will NOT reconcile PredictedHP until this
+        // grace window expires — giving RPC_Die time to arrive and confirm.
+        private float _predictedKillTime = -10f;
+        private const float RECONCILE_GRACE_SEC = 1.5f;
 
         // Immunity state
         private SkinnedMeshRenderer tpvSMR;          // cached from playerSetup
@@ -110,6 +122,28 @@ namespace ArtisansGuns.Game
 
         /// <summary>Public read-only access so the shooter's client can skip immune targets.</summary>
         public bool IsImmune => isImmune;
+
+        /// <summary>
+        /// Called by CharacterSetupHandler after applying character materials.
+        /// If immunity is active, re-snapshots the correct originals and re-applies
+        /// the immunity material so it isn't lost to the mesh swap.
+        /// </summary>
+        public void RefreshImmunityMaterials()
+        {
+            if (!isImmune || inmuneMaterial == null) return;
+
+            if (tpvSMR != null)
+            {
+                tpvOriginalMaterials = tpvSMR.sharedMaterials;
+                tpvSMR.sharedMaterials = BuildUniformArray(inmuneMaterial, tpvOriginalMaterials.Length);
+            }
+
+            if (Object.HasInputAuthority && armsSMR != null)
+            {
+                armsOriginalMaterials = armsSMR.sharedMaterials;
+                armsSMR.sharedMaterials = BuildUniformArray(inmuneMaterial, armsOriginalMaterials.Length);
+            }
+        }
 
         // ────────────────────────────────────────────────────────────────────
         // Fusion lifecycle
@@ -132,8 +166,9 @@ namespace ArtisansGuns.Game
                 armsSMR = playerSetup.armsSkinnedMeshRenderer;
             }
 
-            // Initialize HP (only the authority sets its own HP)
-            if (Object.HasInputAuthority)
+            // Initialize HP (authority sets own HP; host sets bot HP)
+            bool isBot = playerController != null && playerController.IsBotControlled;
+            if (Object.HasInputAuthority || (isBot && Object.HasStateAuthority))
             {
                 HP = MAX_HP;
                 IsDead = false;
@@ -162,6 +197,9 @@ namespace ArtisansGuns.Game
         /// </summary>
         public void ResetForNewRound()
         {
+            // Reset momentum first so CurrentMaxHP returns base value
+            GetComponent<MomentumManager>()?.ResetForNewRound();
+
             HP = MAX_HP;
             IsDead = false;
             PredictedHP = MAX_HP;
@@ -188,9 +226,31 @@ namespace ArtisansGuns.Game
             bool isHeadshot,
             float headshotMultiplier,
             PlayerRef shooterRef,
-            string weaponId = "")
+            string weaponId = "",
+            NetworkObject botShooterObj = null)
         {
             if (victim == null || victim.IsDead || victim.PredictedDead) return;
+
+            // Track bot shooter for kill credit (set only on HOST)
+            if (botShooterObj != null)
+                victim.LastBotKiller = botShooterObj;
+
+            // Block damage on immune targets (spawn protection) — prevents
+            // false predicted kills when immunity just ended on the shooter's
+            // client but is still active on the victim's authority.
+            if (victim.IsImmune) return;
+
+            // Block damage from dead shooters — prevents mutual kills
+            if (victim.Runner != null)
+            {
+                var shooterObj = victim.Runner.GetPlayerObject(shooterRef);
+                if (shooterObj != null)
+                {
+                    var shooterHealth = shooterObj.GetComponent<PlayerHealth>();
+                    if (shooterHealth != null && (shooterHealth.IsDead || shooterHealth.PredictedDead))
+                        return;
+                }
+            }
 
             // If the victim was healed (kill reward) above our local PredictedHP,
             // sync up to prevent false death predictions from stale values.
@@ -200,10 +260,10 @@ namespace ArtisansGuns.Game
 
             // Block damage during the PreStart warm-up (players can move but not kill)
             var gsm = ArtisansGuns.Networking.GameStateManager.Instance;
-            if (gsm != null && gsm.PreStartActive) return;
+            if (gsm != null && gsm.Object != null && gsm.Object.IsValid && gsm.PreStartActive) return;
 
             // Block ALL damage once the match has ended (covers delayed grenades/abilities)
-            if (gsm != null && gsm.MatchEnded) return;
+            if (gsm != null && gsm.Object != null && gsm.Object.IsValid && gsm.MatchEnded) return;
 
             float finalDamage = isHeadshot ? damage * headshotMultiplier : damage;
 
@@ -216,7 +276,22 @@ namespace ArtisansGuns.Game
 
             if (victim.PredictedDead)
             {
+                victim._predictedKillTime = Time.time;
                 Debug.Log($"[PlayerHealth] PredictedDead (PredictedHP=0) for Player {victim.Object.InputAuthority.PlayerId}");
+
+                // ── INSTANT predicted death visuals (same frame as lethal shot) ──
+                // Hide TPV model + spawn death VFX immediately on the shooter's
+                // client so there's no perceptible delay waiting for RPC_Die.
+                if (victim.tpvController != null)
+                    victim.tpvController.HideTPV();
+
+                var victimCapsule = victim.GetComponent<CapsuleCollider>();
+                if (victimCapsule != null) victimCapsule.enabled = false;
+
+                if (victim.charController != null) victim.charController.enabled = false;
+
+                // SpawnDeathVFX is handled by RPC_Die on all clients — skip here
+                // to avoid duplicate VFX on the shooter's client.
 
                 // ── INSTANT combo kill audio + white flash (predicted kill) ──
                 // Fires on the shooter's client the same frame as the lethal shot,
@@ -229,15 +304,15 @@ namespace ArtisansGuns.Game
                         var activeWeapon = shooterObj.GetComponent<PlayerSetup>()?.GetActiveWeaponConfig();
                         ArtisansGuns.Audio.ComboKillManager.Instance?.OnKillConfirmed(activeWeapon);
 
-                        // ── Kill rewards: heal to full + reset ability cooldowns ──
+                        // ── Kill rewards: momentum buffs + reset ability cooldowns ──
                         var shooterHealth = shooterObj.GetComponent<PlayerHealth>();
                         if (shooterHealth != null)
                         {
-                            shooterHealth.HP = MAX_HP;
-                            shooterHealth.PredictedHP = MAX_HP;
-                            shooterHealth.UpdateHealthBarUI();
                             shooterHealth.PredictedKillRewardPending = true;
                         }
+
+                        // Momentum: speed + HP bonuses + start passive regen
+                        shooterObj.GetComponent<MomentumManager>()?.OnKill();
 
                         shooterObj.GetComponent<AbilitySystem>()
                             ?.ResetAbilityCooldownsOnKill();
@@ -257,6 +332,8 @@ namespace ArtisansGuns.Game
                 case "knife":         return 3;
                 case "default_knife": return 3;
                 case "crimson_ultimate": return 4;
+                case "onyx":            return 5;
+                case "titan":           return 6;
                 default:              return 0;
             }
         }
@@ -269,6 +346,8 @@ namespace ArtisansGuns.Game
                 case 2:  return "bolt";
                 case 3:  return "knife";
                 case 4:  return "crimson_ultimate";
+                case 5:  return "onyx";
+                case 6:  return "titan";
                 default: return "talon_ar";
             }
         }
@@ -294,9 +373,17 @@ namespace ArtisansGuns.Game
                 if (IsDead) return;
                 if (isImmune) return;   // spawn immunity — no damage
 
+                // Block damage from dead shooters (authoritative backup)
+                var shooterObj = Runner.GetPlayerObject(shooterRef);
+                if (shooterObj != null)
+                {
+                    var shooterHealth = shooterObj.GetComponent<PlayerHealth>();
+                    if (shooterHealth != null && shooterHealth.IsDead) return;
+                }
+
                 // Block damage after match timer expired or match ended
                 var gsm = ArtisansGuns.Networking.GameStateManager.Instance;
-                if (gsm != null && (gsm.MatchEnded || !gsm.GameInProgress)) return;
+                if (gsm != null && gsm.Object != null && gsm.Object.IsValid && (gsm.MatchEnded || !gsm.GameInProgress)) return;
 
                 lastHitWeaponCode  = weaponCode;
                 lastHitWasHeadshot = isHeadshot;
@@ -336,6 +423,10 @@ namespace ArtisansGuns.Game
             var capsule = GetComponent<CapsuleCollider>();
             if (capsule != null) capsule.enabled = false;
 
+            // Also disable CharacterController's built-in collider so dead bodies
+            // don't block bullets (CC has its own capsule that is NOT the CapsuleCollider).
+            if (charController != null) charController.enabled = false;
+
             int playerLayer = LayerMask.NameToLayer("Player");
             if (playerLayer >= 0) gameObject.layer = playerLayer;
             if (tpvController != null)
@@ -371,11 +462,24 @@ namespace ArtisansGuns.Game
                 // Drop all weapons on death (so other players can pick them up)
                 GetComponent<WeaponDropSystem>()?.DropAllWeaponsOnDeath();
 
-                // Kill charges toward ultimate persist through death — do NOT call ResetCombo()
+                // Kill charges toward ultimate persist through death — do NOT call full ResetCombo().
+                // But the kill-streak counter (KillUI number) must reset on death.
+                ArtisansGuns.Audio.ComboKillManager.Instance?.ResetKillStreakOnDeath();
+
+                // Momentum: reset all speed + HP bonuses on death
+                GetComponent<MomentumManager>()?.ResetOnDeath();
 
                 if (playerController != null)
                     playerController.enabled = false;
                 ShowDeathOverlay(true);
+                waitingToRespawn = true;
+                respawnTimer = RESPAWN_SECONDS;
+            }
+
+            // ── BOT: host starts respawn timer ──────────────────────────────
+            bool isBotDeath = playerController != null && playerController.IsBotControlled && Object.HasStateAuthority;
+            if (isBotDeath)
+            {
                 waitingToRespawn = true;
                 respawnTimer = RESPAWN_SECONDS;
             }
@@ -397,6 +501,8 @@ namespace ArtisansGuns.Game
             var capsule = GetComponent<CapsuleCollider>();
             if (capsule != null) capsule.enabled = true;
 
+            if (charController != null) charController.enabled = true;
+
             StartImmunity();
 
             // ── VICTIM client (InputAuthority): restore control + hide UI ───
@@ -404,7 +510,10 @@ namespace ArtisansGuns.Game
             {
                 // Re-enable movement input
                 if (playerController != null)
+                {
                     playerController.enabled = true;
+                    playerController.ForceStand(); // clear crouch state from before death
+                }
 
                 ShowDeathOverlay(false);
                 waitingToRespawn = false;
@@ -556,7 +665,9 @@ namespace ArtisansGuns.Game
 
         private void Update()
         {
-            if (!Object || !Object.HasInputAuthority) return;
+            bool isBot = playerController != null && playerController.IsBotControlled;
+            if (!Object) return;
+            if (!Object.HasInputAuthority && !(isBot && Object.HasStateAuthority)) return;
 
             // Fade damage vignette
             if (damageVignetteAlpha > 0f)
@@ -579,7 +690,7 @@ namespace ArtisansGuns.Game
 
             // Don't respawn if match has ended — dead players stay dead through ceremony
             var gsm = ArtisansGuns.Networking.GameStateManager.Instance;
-            if (gsm != null && gsm.MatchEnded)
+            if (gsm != null && gsm.Object != null && gsm.Object.IsValid && gsm.MatchEnded)
             {
                 if (respawnText != null) respawnText.text = "";
                 return;
@@ -588,7 +699,11 @@ namespace ArtisansGuns.Game
             if (respawnTimer <= 0f)
             {
                 waitingToRespawn = false;
-                Respawn();
+                bool isBotRespawn = playerController != null && playerController.IsBotControlled;
+                if (isBotRespawn)
+                    BotRespawn();
+                else
+                    Respawn();
             }
         }
 
@@ -635,6 +750,69 @@ namespace ArtisansGuns.Game
             Debug.Log($"[PlayerHealth] Respawned at {spawnPos} with {HP} HP");
         }
 
+        /// <summary>
+        /// Bot respawn — called on host when bot's respawn timer expires.
+        /// Uses StateAuthority RPC since bots have no InputAuthority.
+        /// </summary>
+        private void BotRespawn()
+        {
+            int team = netData != null ? netData.Team : 0;
+            Vector3 spawnPos = Vector3.zero;
+            Quaternion spawnRot = Quaternion.identity;
+
+            try
+            {
+                var gm = GameManager.Instance;
+                if (gm != null)
+                {
+                    spawnPos = gm.GetSafeSpawnPositionForTeam(team);
+                    spawnRot = gm.GetSpawnRotationForTeam(team);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[PlayerHealth] Bot respawn error: {e.Message}");
+            }
+
+            // Reset networked state
+            HP = MAX_HP;
+            IsDead = false;
+
+            // Teleport bot
+            if (charController != null) charController.enabled = false;
+            transform.position = spawnPos;
+            transform.rotation = spawnRot;
+            if (charController != null) charController.enabled = true;
+
+            if (playerController != null)
+            {
+                playerController.NetworkPosition = spawnPos;
+                playerController.NetworkRotation = spawnRot;
+            }
+
+            // Broadcast visual respawn to all clients
+            RPC_BotRespawn(spawnPos, spawnRot);
+
+            Debug.Log($"[PlayerHealth] Bot respawned at {spawnPos}");
+        }
+
+        /// <summary>
+        /// Broadcast by host so every client re-shows the bot's TPV model.
+        /// </summary>
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        public void RPC_BotRespawn(Vector3 spawnPos, Quaternion spawnRot)
+        {
+            PredictedHP = MAX_HP;
+
+            if (tpvController != null)
+                tpvController.ShowTPV();
+
+            var capsule = GetComponent<CapsuleCollider>();
+            if (capsule != null) capsule.enabled = true;
+
+            StartImmunity();
+        }
+
         // ────────────────────────────────────────────────────────────────────
         // Kill credit helper
         // ────────────────────────────────────────────────────────────────────
@@ -663,6 +841,11 @@ namespace ArtisansGuns.Game
                 {
                     shooterData.Kills += 1;
                     
+                    // Increment the global team kill counter (persists after player leaves)
+                    var gsm = ArtisansGuns.Networking.GameStateManager.Instance;
+                    if (gsm != null && gsm.Object != null && gsm.Object.IsValid)
+                        gsm.RPC_AddTeamKill(shooterData.Team);
+                    
                     // Track headshot kills
                     if (isHeadshot)
                         shooterData.Headshots += 1;
@@ -690,12 +873,8 @@ namespace ArtisansGuns.Game
                         var activeWeapon = shooterObj.GetComponent<PlayerSetup>()?.GetActiveWeaponConfig();
                         ArtisansGuns.Audio.ComboKillManager.Instance?.OnKillConfirmed(activeWeapon);
 
-                        if (shooterHealth != null)
-                        {
-                            shooterHealth.HP = MAX_HP;
-                            shooterHealth.PredictedHP = MAX_HP;
-                            shooterHealth.UpdateHealthBarUI();
-                        }
+                        // Momentum: speed + HP bonuses + start passive regen
+                        shooterObj.GetComponent<MomentumManager>()?.OnKill();
 
                         shooterObj.GetComponent<AbilitySystem>()
                             ?.ResetAbilityCooldownsOnKill();
@@ -704,6 +883,31 @@ namespace ArtisansGuns.Game
                     }
                 }
                 break;
+            }
+
+            // ── Bot kill credit fallback ─────────────────────────────────
+            // LastBotKiller is set only on the HOST (where bots run).
+            // If the standard PlayerRef loop didn't find the shooter (bot has None),
+            // credit the kill to the bot object directly.
+            if (LastBotKiller != null && LastBotKiller.IsValid)
+            {
+                var botData = LastBotKiller.GetComponent<PlayerNetworkData>();
+                if (botData != null && LastBotKiller.HasStateAuthority)
+                {
+                    botData.Kills += 1;
+                    if (isHeadshot) botData.Headshots += 1;
+                    botData.CurrentStreak += 1;
+                    if (botData.CurrentStreak > botData.BestStreak)
+                        botData.BestStreak = botData.CurrentStreak;
+                    botData.UpdatePlayerCache();
+
+                    var gsm = ArtisansGuns.Networking.GameStateManager.Instance;
+                    if (gsm != null && gsm.Object != null && gsm.Object.IsValid)
+                        gsm.RPC_AddTeamKill(botData.Team);
+
+                    Debug.Log($"[PlayerHealth] Bot kill credit: {botData.Username} got kill #{botData.Kills}");
+                }
+                LastBotKiller = null;
             }
         }
 
@@ -734,6 +938,18 @@ namespace ArtisansGuns.Game
                         if (string.IsNullOrEmpty(killerName) || killerName == "0")
                             killerName = killerData.Username.ToString();
                         killerTeam = killerData.Team;
+                    }
+                }
+                // Bot fallback: LastBotKiller was set on HOST by DealDamage
+                else if (LastBotKiller != null && LastBotKiller.IsValid)
+                {
+                    var botData = LastBotKiller.GetComponent<PlayerNetworkData>();
+                    if (botData != null)
+                    {
+                        killerName = botData.CharacterName.ToString();
+                        if (string.IsNullOrEmpty(killerName) || killerName == "0")
+                            killerName = botData.Username.ToString();
+                        killerTeam = botData.Team;
                     }
                 }
             }
@@ -1026,12 +1242,41 @@ namespace ArtisansGuns.Game
                 PredictedHP = HP;
             }
             _lastKnownHP = HP;
+
+            // ── Safety net: keep TPV/collider in sync with [Networked] IsDead ──
+            // If an RPC was missed (frame drop, hitpause), this corrects the ghost state.
+            // IMPORTANT: We honour a grace period after a predicted kill so the safety
+            // net doesn't re-show the victim before RPC_Die has time to arrive.
+            if (!Object.HasInputAuthority && tpvController != null)
+            {
+                bool withinGrace = (Time.time - _predictedKillTime) < RECONCILE_GRACE_SEC;
+
+                if (!IsDead && !tpvController.IsTPVVisible && !withinGrace)
+                {
+                    tpvController.ShowTPV();
+                    var cap = GetComponent<CapsuleCollider>();
+                    if (cap != null) cap.enabled = true;
+
+                    // Reconcile false predicted kill: server says alive, prediction said dead.
+                    if (PredictedDead)
+                    {
+                        PredictedHP = HP > 0f ? HP : MAX_HP;
+                        Debug.Log($"[PlayerHealth] Reconciled false PredictedDead for Player {Object.InputAuthority.PlayerId} — PredictedHP restored to {PredictedHP}");
+                    }
+                }
+                else if (IsDead && tpvController.IsTPVVisible)
+                {
+                    tpvController.HideTPV();
+                    var cap = GetComponent<CapsuleCollider>();
+                    if (cap != null) cap.enabled = false;
+                }
+            }
         }
 
         /// <summary>
         /// Update the HUD health bar text and fill width to reflect current HP.
         /// </summary>
-        private void UpdateHealthBarUI()
+        public void UpdateHealthBarUI()
         {
             if (healthTextElement != null)
             {
@@ -1040,7 +1285,10 @@ namespace ArtisansGuns.Game
 
             if (healthFillElement != null)
             {
-                float pct = Mathf.Clamp01(HP / MAX_HP) * 100f;
+                // Use momentum max HP so the bar scales with kill streak bonuses
+                var momentum = GetComponent<MomentumManager>();
+                float maxHP = momentum != null ? momentum.CurrentMaxHP : MAX_HP;
+                float pct = Mathf.Clamp01(HP / maxHP) * 100f;
                 healthFillElement.style.width = new StyleLength(new Length(pct, LengthUnit.Percent));
             }
         }

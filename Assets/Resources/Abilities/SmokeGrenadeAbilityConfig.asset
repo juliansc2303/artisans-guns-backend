@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 838d7c9dbccb1394ea961383ca697af6, type: 3}
+  m_Name: SmokeGrenadeAbilityConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Abilities.SmokeGrenadeAbilityConfig
+  abilityId: smoke_grenade
+  abilityName: Smoke Grenade
+  description: Throw a smoke grenade that blocks vision
+  icon: {fileID: 21300000, guid: c11a0ef2e7405f54e80082ce26bea447, type: 3}
+  cooldownSeconds: 30
+  grenadeFPVPrefab: {fileID: 7818340604457850361, guid: 88c6c978494a78a4eb5e3cc4439d0de2, type: 3}
+  grenadesHandsAnimatorController: {fileID: 9100000, guid: 12ab06095074f6247999ca82a8d64758, type: 2}
+  grenadeProjectilePrefab: {fileID: 7510782683584759504, guid: d1266567b1a4ee3498cfdb29c09bc74d, type: 3}
+  throwSpeed: 33
+  smokePrefab: {fileID: 4551834779442464622, guid: 88c4e66d9fc40da42bf164330d6983af, type: 3}
+  smokeDuration: 15
+  maxCharges: 2
+  grenadePrefabTPV: {fileID: 7510782683584759504, guid: 6a0a4a6afb961a44c802dca206ed6d01, type: 3}
+  postureAnimatorControllerTPV: {fileID: 9100000, guid: 8cfd41409deed7d42aa5bf80b182a070, type: 2}

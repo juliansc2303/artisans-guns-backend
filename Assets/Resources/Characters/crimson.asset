@@ -13,14 +13,13 @@ MonoBehaviour:
   m_Name: crimson
   m_EditorClassIdentifier: Assembly-CSharp::ArtisansGuns.Characters.CharacterConfig
   characterId: crimson
-  tpvMesh: {fileID: 4300000, guid: 544466b86448fc84b9aef3dc9f05b828, type: 2}
+  tpvMesh: {fileID: -2200655635354384049, guid: 454a89ec9811af242a352193864cb67a, type: 3}
   tpvMaterials:
   - {fileID: 2100000, guid: 6aecdc46d1cc9df41a9302ba40aff35c, type: 2}
-  armsMesh: {fileID: 4300000, guid: d404be9a0f6dac94499d58d759544aa4, type: 2}
+  armsMesh: {fileID: -2200655635354384049, guid: 63166cbf27b4c704e82302e017d98927, type: 3}
   armsMaterials:
   - {fileID: 2100000, guid: 6aecdc46d1cc9df41a9302ba40aff35c, type: 2}
   ability1: {fileID: 11400000, guid: ec6473521a9105a4384d663518099ebd, type: 2}
-  ability2: {fileID: 11400000, guid: fb1e179fac1b2cf43bd96d3fe7643cbd, type: 2}
   ultimate: {fileID: 11400000, guid: f98607bd3fea46a4194c7a5ed8de263b, type: 2}
   deathVFXPrefab: {fileID: 7531845894394634133, guid: 3b2b3840d5985b34fb7f0fb8f3adbff4, type: 3}
   deathVFXDuration: 3

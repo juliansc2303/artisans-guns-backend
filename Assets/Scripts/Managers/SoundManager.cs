@@ -90,6 +90,14 @@ namespace ArtisansGuns.Managers
         // so it resumes seamlessly when returning to lobby.
         private static readonly string[] GameSceneNames = { "Sandbox", "GameScene" };
 
+        private bool IsInGameScene()
+        {
+            string current = SceneManager.GetActiveScene().name;
+            foreach (var name in GameSceneNames)
+                if (current == name) return true;
+            return false;
+        }
+
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             Debug.Log($"[SoundManager] OnSceneLoaded: {scene.name} | bgm.isPlaying={bgmSource?.isPlaying} bgm.volume={bgmSource?.volume} bgm.time={bgmSource?.time:F1} musicVol={_musicVolume}");
@@ -134,8 +142,8 @@ namespace ArtisansGuns.Managers
             PlayerPrefs.SetFloat(MUSIC_VOL_KEY, _musicVolume);
             PlayerPrefs.Save();
 
-            // Apply immediately if we're not in a game scene
-            if (bgmSource != null && bgmSource.volume > 0f)
+            // Apply immediately unless we're in a game scene (where volume is forced to 0)
+            if (bgmSource != null && !IsInGameScene())
                 bgmSource.volume = _musicVolume;
         }
 
@@ -165,6 +173,15 @@ namespace ArtisansGuns.Managers
         {
             if (clip == null || sfxSource == null) return;
             sfxSource.PlayOneShot(clip);
+        }
+
+        /// <summary>Play a one-shot SFX at a custom pitch (resets to 1 after).</summary>
+        public void PlaySFXWithPitch(AudioClip clip, float pitch = 1f)
+        {
+            if (clip == null || sfxSource == null) return;
+            sfxSource.pitch = pitch;
+            sfxSource.PlayOneShot(clip);
+            sfxSource.pitch = 1f;
         }
 
         // ─── Global UI button hook ────────────────────────────────────────────

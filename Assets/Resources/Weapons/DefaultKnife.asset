@@ -17,6 +17,9 @@ MonoBehaviour:
   isKnife: 1
   isPrimary: 0
   isSecondary: 0
+  isShotgun: 0
+  pelletCount: 9
+  shotgunSpreadAngle: 5
   weaponClass: 0
   whiteIcon: {fileID: 0}
   killUISprite: {fileID: 21300000, guid: 04fe998573c4375498f2f5efbac5093a, type: 3}
@@ -51,6 +54,14 @@ MonoBehaviour:
     impactEffectPrefab: {fileID: 3006088146972272947, guid: 7c9792fcaedd5e44f836cba67388e08b, type: 3}
     impactEffectDuration: 1
     impactSound: {fileID: 8300000, guid: 3b6f64737fbada94884ea5bb7310c0b3, type: 3}
+  - tag: Ventilador
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 8ba4fc1a49b54e34080fb1bf96ea112b, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: 3b6f64737fbada94884ea5bb7310c0b3, type: 3}
+  - tag: Mwall
+    impactEffectPrefab: {fileID: 3006088146972272947, guid: 8a5840a4992b6e149809a464b0848eb1, type: 3}
+    impactEffectDuration: 1
+    impactSound: {fileID: 8300000, guid: cf9e81837c283344f937b9526ca7a8e9, type: 3}
   fireSoundTPV: {fileID: 8300000, guid: 88e77e4488c43a14a83e3880c64e6170, type: 3}
   recoilPattern: {fileID: 0}
   recoilKickAmount: 0
@@ -78,7 +89,7 @@ MonoBehaviour:
     connect to TPV IK constraints."
   killSound: {fileID: 8300000, guid: c46fdefe85e166b4d8c415174ce89c3e, type: 3}
   climaxSound: {fileID: 8300000, guid: fbdf655286c61ca4c9d27b2fe72e66d8, type: 3}
-  headBloodPrefab: {fileID: 8990594275501057901, guid: 78b42a45b14ba594bb566984c6d27ebd, type: 3}
+  headBloodPrefab: {fileID: 197462128237470564, guid: 927a8adc356f08a4fa3142d2c1404f5e, type: 3}
   bodyBloodPrefab: {fileID: 8990594275501057901, guid: 78b42a45b14ba594bb566984c6d27ebd, type: 3}
   bloodEffectDuration: 3
   bulletTrailMaterial: {fileID: 0}
