@@ -2,7 +2,6 @@
   "name": "ryvalen",
   "private": true,
   "scripts": {
-    "install": "cd Backend && npm install",
-    "start": "cd Backend && npm start"
+    "postinstall": "cd Backend && npm install"
   }
 }
