@@ -63,12 +63,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Debug: direct test endpoint (bypasses router)
-app.post('/api/auth/guest', (req, res) => {
-    console.log('🔥 Direct guest endpoint hit! Body:', req.body);
-    res.json({ success: true, direct: true });
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/loadout', loadoutRoutes);

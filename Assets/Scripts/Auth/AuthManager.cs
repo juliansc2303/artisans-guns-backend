@@ -18,7 +18,7 @@ namespace ArtisansGuns.Auth
         public enum AuthMode { Guest, LoggedIn }
 
         // Backend URL
-        private const string BASE_URL = "https://ryvalen.onrender.com/api";
+        private const string BASE_URL = "https://artisans-guns-api.onrender.com/api";
         private const int REQUEST_TIMEOUT = 120;
         
         [Header("Security")]
@@ -145,46 +145,58 @@ namespace ArtisansGuns.Auth
             var requestBody = new GuestLoginRequest { guestUuid = guestUuid };
             string json = JsonUtility.ToJson(requestBody);
 
-            using (UnityWebRequest request = new UnityWebRequest($"{BASE_URL}/auth/guest", "POST"))
+            for (int attempt = 0; attempt < 3; attempt++)
             {
-                request.timeout = REQUEST_TIMEOUT;
+                if (attempt > 0)
+                {
+                    Debug.Log($"[AuthManager] Retry attempt {attempt + 1}/3...");
+                    yield return new WaitForSeconds(2f);
+                }
+
+                UnityWebRequest request = new UnityWebRequest($"{BASE_URL}/auth/guest", "POST");
+                Debug.Log($"[AuthManager] Calling: {BASE_URL}/auth/guest");
+                request.timeout = 30;
                 byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
                 request.uploadHandler = new UploadHandlerRaw(bodyRaw);
                 request.downloadHandler = new DownloadHandlerBuffer();
                 request.SetRequestHeader("Content-Type", "application/json");
-
                 yield return request.SendWebRequest();
 
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    GuestLoginResponse response = JsonUtility.FromJson<GuestLoginResponse>(request.downloadHandler.text);
-
+                    if (request.result == UnityWebRequest.Result.Success)
+                    {
+                        string rawJson = request.downloadHandler.text;
+                        int maxLen = rawJson.Length > 300 ? 300 : rawJson.Length;
+                        Debug.Log($"[AuthManager] Raw response: {rawJson.Substring(0, maxLen)}");
+                        GuestLoginResponse response = JsonUtility.FromJson<GuestLoginResponse>(rawJson);
+                    request.Dispose();
                     if (response.success && response.user != null)
                     {
+                        Debug.Log($"[AuthManager] Guest ready (DB-backed): {response.user.characterName} (id={response.user.id}, token={response.token?.Substring(0, 20)}...)");
                         currentToken = response.token;
                         currentUser = response.user;
                         CurrentAuthMode = AuthMode.Guest;
                         isGuestSession = true;
-
                         SaveToken(currentToken);
                         SaveUserData(currentUser, true);
-
                         Debug.Log($"[AuthManager] Guest ready (DB-backed): {currentUser.characterName} (id={currentUser.id})");
                         _backendConfirmed = true;
                         OnGuestReady?.Invoke(currentUser);
+                        yield break;
                     }
                     else
                     {
                         Debug.LogError($"[AuthManager] Guest backend error: {response.error}");
                         OnConnectionFailed?.Invoke($"Server error: {response.error}");
+                        yield break;
                     }
                 }
-                else
-                {
-                    Debug.LogError($"[AuthManager] Backend unreachable: {request.error}");
-                    OnConnectionFailed?.Invoke("Cannot connect to server. Make sure the backend is running.");
-                }
+
+                Debug.LogWarning($"[AuthManager] Attempt {attempt + 1} failed — code: {request.responseCode} error: {request.error}");
+                request.Dispose();
             }
+
+            Debug.LogError("[AuthManager] All retry attempts failed");
+            OnConnectionFailed?.Invoke("Cannot connect to server after multiple attempts.");
         }
 
         /// <summary>
@@ -795,7 +807,7 @@ namespace ArtisansGuns.Auth
         /// <summary>
         /// Clear all saved auth data from PlayerPrefs.
         /// </summary>
-        private void ClearSavedAuth()
+        public void ClearSavedAuth()
         {
             currentToken = null;
             currentUser = null;
