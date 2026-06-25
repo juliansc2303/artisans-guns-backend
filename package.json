@@ -1,7 +1,0 @@
-{
-  "name": "ryvalen",
-  "private": true,
-  "scripts": {
-    "postinstall": "cd Backend && npm install"
-  }
-}
